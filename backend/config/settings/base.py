@@ -28,6 +28,8 @@ INSTALLED_APPS = [
     "django_celery_beat",
     "apps.common",
     "apps.accounts",
+    "apps.catalog",
+    "apps.inventory",
     "apps.analytics",
 ]
 

@@ -1126,7 +1126,7 @@ make up            # build + start the stack
 make down          # stop (keep volumes);  make clean  drops volumes
 make logs s=api    # tail one service
 make migrate       # Django + ClickHouse migrations
-make seed          # demo data: 40 airports, 6 airlines, 90 days of flights, fares, users
+make seed          # demo data: 16 airports, 4 airlines, 90 days of flights, fares, users
 make test          # backend pytest + frontend vitest
 make e2e           # Playwright against the compose stack
 make lint          # ruff + mypy + eslint + tsc + prettier

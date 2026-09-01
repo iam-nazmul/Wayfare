@@ -6,6 +6,8 @@ from apps.common import views as common_views
 
 api_v1 = [
     path("", include("apps.accounts.urls")),
+    path("", include("apps.catalog.urls")),
+    path("", include("apps.inventory.urls")),
     path("", include("apps.analytics.urls")),
 ]
 
