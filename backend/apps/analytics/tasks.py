@@ -25,6 +25,13 @@ REQUEST_LOG_COLUMNS = [
     "duration_ms", "user_id", "ip", "user_agent", "error_code",
 ]
 
+SEARCH_LOG_COLUMNS = [
+    "search_id", "event_time", "session_id", "user_id", "origin", "destination",
+    "depart_date", "return_date", "trip_type", "pax_adults", "pax_children",
+    "pax_infants", "cabin", "currency", "results_count", "cheapest_amount",
+    "median_amount", "cache_hit", "latency_ms", "partial",
+]
+
 
 def _ensure_group() -> None:
     client = stream_client()
@@ -53,6 +60,7 @@ def flush_event_buffer() -> int:
 
     clickstream: list[list] = []
     requests: list[list] = []
+    searches: list[list] = []
     ack_ids: list[str] = []
 
     for _stream, messages in entries:
@@ -64,10 +72,13 @@ def flush_event_buffer() -> int:
                 clickstream.append(_clickstream_row(payload))
             elif kind == "api_request":
                 requests.append(_request_row(payload))
+            elif kind == "search":
+                searches.append(_search_row(payload))
 
     try:
         insert_rows("wayfare.events", clickstream, CLICKSTREAM_COLUMNS)
         insert_rows("wayfare.api_request_log", requests, REQUEST_LOG_COLUMNS)
+        insert_rows("wayfare.search_log", searches, SEARCH_LOG_COLUMNS)
     except Exception:  # noqa: BLE001
         logger.warning("clickhouse_insert_failed", exc_info=True)
         return 0  # leave the entries unacked; the next tick retries them
@@ -114,6 +125,36 @@ def _request_row(payload: dict) -> list:
         payload.get("ip") or "::",
         payload.get("user_agent", "")[:512],
         payload.get("error_code", ""),
+    ]
+
+
+def _search_row(payload: dict) -> list:
+    from datetime import date as date_type
+
+    def as_date(value):
+        return date_type.fromisoformat(value) if value else None
+
+    return [
+        payload.get("search_id"),
+        _ts(payload.get("event_time")),
+        payload.get("session_id", ""),
+        payload.get("user_id"),
+        payload.get("origin", ""),
+        payload.get("destination", ""),
+        as_date(payload.get("depart_date")),
+        as_date(payload.get("return_date")),
+        payload.get("trip_type", ""),
+        int(payload.get("pax_adults", 0)),
+        int(payload.get("pax_children", 0)),
+        int(payload.get("pax_infants", 0)),
+        payload.get("cabin", ""),
+        payload.get("currency", ""),
+        int(payload.get("results_count", 0)),
+        payload.get("cheapest_amount", "0"),
+        payload.get("median_amount", "0"),
+        int(payload.get("cache_hit", 0)),
+        int(payload.get("latency_ms", 0)),
+        int(payload.get("partial", 0)),
     ]
 
 

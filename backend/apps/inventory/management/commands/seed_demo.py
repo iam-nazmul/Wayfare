@@ -1,4 +1,5 @@
 from datetime import date, time, timedelta
+from decimal import Decimal
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -7,9 +8,11 @@ from django.utils import timezone
 from apps.accounts.constants import RoleCode
 from apps.accounts.models import Agency, User, UserRole
 from apps.catalog.models import Aircraft, Airline, Airport, City, Country, Currency
-from apps.inventory.constants import ScheduleStatus
+from apps.inventory.constants import DEFAULT_RBDS, ScheduleStatus
 from apps.inventory.models import FlightSchedule, Route, SeatMapTemplate
 from apps.inventory.services.materialise import materialise_schedule
+from apps.pricing.constants import PassengerType
+from apps.pricing.models import Fare, FareFamily, FeeRule, PromoCode, TaxRule
 
 DEMO_PASSWORD = "wayfare-demo-1"
 
@@ -86,6 +89,86 @@ SCHEDULES = [
     ("NA", "720", "LHR", "BKK", time(12, 30), time(6, 45), 1, "77W", {"ECONOMY": 310, "BUSINESS": 32}),
 ]
 
+# One-way adult base fare in USD for the cheapest economy bucket on each market.
+MARKET_BASE_FARE = {
+    ("DAC", "DXB"): 210, ("DXB", "DAC"): 205,
+    ("DAC", "LHR"): 480, ("LHR", "DAC"): 495,
+    ("DAC", "CGP"): 38, ("CGP", "DAC"): 38,
+    ("DAC", "CXB"): 42, ("CXB", "DAC"): 42,
+    ("DAC", "SIN"): 260, ("SIN", "DAC"): 255,
+    ("DXB", "LHR"): 320, ("LHR", "DXB"): 330,
+    ("DXB", "DEL"): 145,
+    ("LHR", "JFK"): 390, ("JFK", "LHR"): 405,
+    ("LHR", "BKK"): 520,
+}
+
+CABIN_MULTIPLIER = {
+    "ECONOMY": 1.0,
+    "PREMIUM_ECONOMY": 1.8,
+    "BUSINESS": 3.4,
+    "FIRST": 5.5,
+}
+
+FARE_FAMILIES = {
+    "ECONOMY": {
+        "BASIC": {"name": "Economy Basic", "changeable": False, "change_fee": 0,
+                  "refundable": False, "refund_fee": 0, "free_seats": False, "sort_order": 0,
+                  "baggage": {"cabin_kg": 7, "checked_kg": 0, "pieces": 0}},
+        "STANDARD": {"name": "Economy Standard", "changeable": True, "change_fee": 60,
+                     "refundable": False, "refund_fee": 0, "free_seats": True, "sort_order": 1,
+                     "baggage": {"cabin_kg": 7, "checked_kg": 23, "pieces": 1}},
+        "FLEX": {"name": "Economy Flex", "changeable": True, "change_fee": 0,
+                 "refundable": True, "refund_fee": 40, "free_seats": True, "sort_order": 2,
+                 "baggage": {"cabin_kg": 10, "checked_kg": 32, "pieces": 2}},
+    },
+    "PREMIUM_ECONOMY": {
+        "BASIC": {"name": "Premium Basic", "changeable": False, "change_fee": 0,
+                  "refundable": False, "refund_fee": 0, "free_seats": True, "sort_order": 0,
+                  "baggage": {"cabin_kg": 10, "checked_kg": 23, "pieces": 1}},
+        "STANDARD": {"name": "Premium Standard", "changeable": True, "change_fee": 80,
+                     "refundable": False, "refund_fee": 0, "free_seats": True, "sort_order": 1,
+                     "baggage": {"cabin_kg": 10, "checked_kg": 32, "pieces": 2}},
+        "FLEX": {"name": "Premium Flex", "changeable": True, "change_fee": 0,
+                 "refundable": True, "refund_fee": 60, "free_seats": True, "sort_order": 2,
+                 "baggage": {"cabin_kg": 12, "checked_kg": 32, "pieces": 2}},
+    },
+    "BUSINESS": {
+        "BASIC": {"name": "Business Saver", "changeable": True, "change_fee": 120,
+                  "refundable": False, "refund_fee": 0, "free_seats": True, "sort_order": 0,
+                  "baggage": {"cabin_kg": 14, "checked_kg": 32, "pieces": 2}},
+        "STANDARD": {"name": "Business", "changeable": True, "change_fee": 60,
+                     "refundable": True, "refund_fee": 120, "free_seats": True, "sort_order": 1,
+                     "baggage": {"cabin_kg": 14, "checked_kg": 32, "pieces": 2}},
+        "FLEX": {"name": "Business Flex", "changeable": True, "change_fee": 0,
+                 "refundable": True, "refund_fee": 0, "free_seats": True, "sort_order": 2,
+                 "baggage": {"cabin_kg": 18, "checked_kg": 32, "pieces": 3}},
+    },
+    "FIRST": {
+        "STANDARD": {"name": "First", "changeable": True, "change_fee": 0,
+                     "refundable": True, "refund_fee": 150, "free_seats": True, "sort_order": 0,
+                     "baggage": {"cabin_kg": 20, "checked_kg": 40, "pieces": 3}},
+        "FLEX": {"name": "First Flex", "changeable": True, "change_fee": 0,
+                 "refundable": True, "refund_fee": 0, "free_seats": True, "sort_order": 1,
+                 "baggage": {"cabin_kg": 20, "checked_kg": 40, "pieces": 3}},
+        "BASIC": {"name": "First Saver", "changeable": True, "change_fee": 200,
+                  "refundable": False, "refund_fee": 0, "free_seats": True, "sort_order": 0,
+                  "baggage": {"cabin_kg": 20, "checked_kg": 40, "pieces": 3}},
+    },
+}
+
+# (code, name, scope, calc_type, value, refundable)
+TAXES = [
+    ("YQ", "Carrier-imposed surcharge", "SEGMENT", "FIXED", Decimal("18.00"), False),
+    ("XT", "Passenger service charge", "DEPARTURE", "FIXED", Decimal("12.50"), False),
+    ("VAT", "Value added tax", "ITINERARY", "PERCENT", Decimal("5.00"), True),
+]
+
+# (code, name, scope, calc_type, value)
+FEES = [
+    ("OB", "Booking fee", "BOOKING", "FIXED", Decimal("6.00")),
+    ("SV", "Service fee", "PASSENGER", "FIXED", Decimal("3.50")),
+]
+
 SEAT_MAPS = {
     "32N": {
         "cabins": [
@@ -132,6 +215,9 @@ class Command(BaseCommand):
 
         self.stdout.write("seeding users…")
         self._users()
+
+        self.stdout.write("seeding fares…")
+        self._pricing()
 
         self.stdout.write("seeding schedules…")
         schedules = self._schedules()
@@ -229,6 +315,109 @@ class Command(BaseCommand):
                 email="admin@wayfare.local", password=DEMO_PASSWORD,
                 first_name="Site", last_name="Admin",
             )
+
+    def _pricing(self) -> None:
+        """Fare families, a fare per RBD, and the taxes and fees that ride on top.
+
+        Fares are priced off a per-market base and the RBD ladder, so the cheapest open bucket
+        really is the cheapest fare — which is what makes the search results meaningful.
+        """
+        today = date.today()
+        families: dict[tuple[str, str, str], FareFamily] = {}
+
+        for airline, *_ in AIRLINES:
+            for cabin, tiers in FARE_FAMILIES.items():
+                for tier, spec in tiers.items():
+                    family, _ = FareFamily.objects.update_or_create(
+                        airline_id=airline,
+                        code=f"{cabin[:3]}{tier[:3]}",
+                        defaults={
+                            "name": spec["name"],
+                            "cabin": cabin,
+                            "tier": tier,
+                            "changeable": spec["changeable"],
+                            "change_fee": spec["change_fee"],
+                            "refundable": spec["refundable"],
+                            "refund_fee": spec["refund_fee"],
+                            "allows_residual_value": spec["refundable"],
+                            "baggage_allowance": spec["baggage"],
+                            "seat_selection_free": spec["free_seats"],
+                            "sort_order": spec["sort_order"],
+                        },
+                    )
+                    families[(airline, cabin, tier)] = family
+
+        for airline, number, origin, dest, *rest in SCHEDULES:
+            capacity = rest[4]
+            base_usd = MARKET_BASE_FARE.get((origin, dest)) or MARKET_BASE_FARE.get(
+                (dest, origin), 120
+            )
+
+            for cabin in capacity:
+                multiplier = CABIN_MULTIPLIER[cabin]
+                for order, rbd in enumerate(DEFAULT_RBDS.get(cabin, [])):
+                    # Cheapest bucket last in the ladder: each step down the ladder is +18%.
+                    ladder = Decimal("1.0") + (Decimal("0.18") * (len(DEFAULT_RBDS[cabin]) - 1 - order))
+                    tier = "FLEX" if order == 0 else ("STANDARD" if order < 3 else "BASIC")
+                    amount = (Decimal(base_usd) * Decimal(str(multiplier)) * ladder).quantize(
+                        Decimal("0.01")
+                    )
+
+                    Fare.objects.update_or_create(
+                        airline_id=airline,
+                        origin_airport_id=origin,
+                        destination_airport_id=dest,
+                        cabin=cabin,
+                        rbd=rbd,
+                        passenger_type=PassengerType.ADULT,
+                        defaults={
+                            "fare_family": families[(airline, cabin, tier)],
+                            "fare_basis": f"{rbd}{cabin[:2]}{'OW'}",
+                            "base_amount": amount,
+                            "currency": "USD",
+                            "advance_purchase_days": 0 if order < 3 else 3,
+                            "valid_from": today - timedelta(days=1),
+                            "valid_to": today + timedelta(days=365),
+                        },
+                    )
+
+        for code, name, scope, calc, value, refundable in TAXES:
+            TaxRule.objects.update_or_create(
+                code=code,
+                country=None,
+                airport=None,
+                defaults={
+                    "name": name,
+                    "applies_to": scope,
+                    "calc_type": calc,
+                    "value": value,
+                    "currency": "USD",
+                    "is_refundable": refundable,
+                },
+            )
+
+        for code, name, scope, calc, value in FEES:
+            FeeRule.objects.update_or_create(
+                code=code,
+                defaults={
+                    "name": name,
+                    "scope": scope,
+                    "calc_type": calc,
+                    "value": value,
+                    "currency": "USD",
+                },
+            )
+
+        PromoCode.objects.update_or_create(
+            code="WELCOME10",
+            defaults={
+                "discount_type": "PERCENT",
+                "value": Decimal("10.00"),
+                "valid_from": timezone.now() - timedelta(days=1),
+                "valid_to": timezone.now() + timedelta(days=365),
+                "per_user_limit": 1,
+            },
+        )
 
     def _schedules(self) -> list[FlightSchedule]:
         templates = {}

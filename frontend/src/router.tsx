@@ -5,6 +5,7 @@ import { Layout } from './components/Layout';
 import { PageSkeleton } from './components/PageSkeleton';
 
 const Home = lazy(() => import('./features/search/HomePage'));
+const SearchResults = lazy(() => import('./features/search/SearchResultsPage'));
 const NotFound = lazy(() => import('./features/shell/NotFoundPage'));
 
 function lazyRoute(Component: ComponentType) {
@@ -21,6 +22,7 @@ export const router = createBrowserRouter([
     element: <Layout />,
     children: [
       { index: true, element: lazyRoute(Home) },
+      { path: 'search', element: lazyRoute(SearchResults) },
       { path: '*', element: lazyRoute(NotFound) },
     ],
   },
