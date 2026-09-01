@@ -1,12 +1,19 @@
 /**
- * Flight times render in airport-local time, never the viewer's timezone — a passenger
- * boards on the clock at the gate.
+ * Flight times render in airport-local time, never the viewer's timezone — a passenger boards on
+ * the clock at the gate.
+ *
+ * The API sends *_local as a wall clock in a UTC container, so formatting MUST pin timeZone to
+ * UTC. Without it the viewer's offset is applied and every departure time shifts.
  */
 export function formatLocalTime(isoLocal: string, locale = 'en-US'): string {
   const date = new Date(isoLocal);
   if (Number.isNaN(date.getTime())) return isoLocal;
-  return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: false })
-    .format(date);
+  return new Intl.DateTimeFormat(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'UTC',
+  }).format(date);
 }
 
 export function formatDate(iso: string, locale = 'en-US'): string {

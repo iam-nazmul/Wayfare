@@ -2,6 +2,7 @@ import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
 
+import apps.accounts.models
 import apps.common.uuid7
 
 
@@ -59,6 +60,10 @@ class Migration(migrations.Migration):
                     "groups",
                     models.ManyToManyField(
                         blank=True,
+                        help_text=(
+                            "The groups this user belongs to. A user will get all permissions "
+                            "granted to each of their groups."
+                        ),
                         related_name="user_set",
                         related_query_name="user",
                         to="auth.group",
@@ -69,6 +74,7 @@ class Migration(migrations.Migration):
                     "user_permissions",
                     models.ManyToManyField(
                         blank=True,
+                        help_text="Specific permissions for this user.",
                         related_name="user_set",
                         related_query_name="user",
                         to="auth.permission",
@@ -77,6 +83,7 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={"abstract": False},
+            managers=[("objects", apps.accounts.models.UserManager())],
         ),
         migrations.CreateModel(
             name="Agency",

@@ -156,7 +156,15 @@ SPECTACULAR_SETTINGS = {
     "OAS_VERSION": "3.1.0",
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/v1",
-    "ENUM_NAME_OVERRIDES": {},
+    # Several models expose a "status" choice set; name them explicitly or spectacular
+    # invents StatusNNNEnum and the generated client names churn between builds.
+    "ENUM_NAME_OVERRIDES": {
+        "FlightStatusEnum": "apps.inventory.constants.FlightStatus.choices",
+        "ScheduleStatusEnum": "apps.inventory.constants.ScheduleStatus.choices",
+        "SeatStatusEnum": "apps.inventory.constants.SeatStatus.choices",
+        "CabinEnum": "apps.inventory.constants.Cabin.choices",
+        "AgencyStatusEnum": "apps.accounts.constants.AgencyStatus.choices",
+    },
 }
 
 SIMPLE_JWT = {
@@ -171,6 +179,21 @@ SIMPLE_JWT = {
 
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=["http://localhost:5173"])
 CORS_ALLOW_CREDENTIALS = True
+# The SPA sends these on booking, payment and search calls; without them the browser blocks
+# the request at preflight and the failure looks like a server error.
+CORS_ALLOW_HEADERS = (
+    "accept",
+    "authorization",
+    "content-type",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "idempotency-key",
+    "if-match",
+    "x-session-id",
+    "x-request-id",
+)
+CORS_EXPOSE_HEADERS = ["ETag", "X-Request-ID"]
 
 # --- Celery ------------------------------------------------------------------
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=f"{REDIS_URL}/0")

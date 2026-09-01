@@ -116,8 +116,11 @@ class SearchOffersView(SearchThrottleMixin, ListAPIView):
 
     serializer_class = OfferSerializer
     permission_classes = [AllowAny]
+    queryset = Offer.objects.none()  # schema introspection has no URL kwargs
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Offer.objects.none()
         search = SearchQuery.objects.get(public_id=self.kwargs["search_id"])
         queryset = Offer.objects.filter(search_query=search)
 

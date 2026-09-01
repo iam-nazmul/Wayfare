@@ -12,7 +12,15 @@ from rest_framework.response import Response
 from apps.common.permissions import OpsPermission, OpsReadOnlyOrRole
 
 from . import selectors
-from .models import BookingClass, CabinConfig, Flight, FlightSchedule, Route, SeatMapTemplate
+from .models import (
+    BookingClass,
+    CabinConfig,
+    Flight,
+    FlightSchedule,
+    Route,
+    Seat,
+    SeatMapTemplate,
+)
 from .serializers import (
     CabinConfigSerializer,
     FlightDetailSerializer,
@@ -36,8 +44,11 @@ class FlightSeatMapView(ListAPIView):
     serializer_class = SeatSerializer
     permission_classes = [AllowAny]
     pagination_class = None
+    queryset = Seat.objects.none()  # schema introspection has no URL kwargs
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Seat.objects.none()
         flight = Flight.objects.get(public_id=self.kwargs["public_id"])
         return selectors.seats_for(flight.id, self.request.query_params.get("cabin", ""))
 
@@ -181,7 +192,10 @@ class OpsFlightManifestView(ListAPIView):
     serializer_class = SeatSerializer
     permission_classes = [OpsPermission]
     pagination_class = None
+    queryset = Seat.objects.none()
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Seat.objects.none()
         flight = Flight.objects.get(public_id=self.kwargs["public_id"])
         return selectors.seats_for(flight.id).exclude(status="AVAILABLE")

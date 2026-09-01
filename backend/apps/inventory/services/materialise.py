@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from django.db import IntegrityError, transaction
@@ -36,14 +36,20 @@ def materialise_schedule(schedule: FlightSchedule, start: date, end: date) -> tu
             day += timedelta(days=1)
             continue
 
-        departure_local = datetime.combine(day, schedule.dep_time_local)
-        arrival_local = datetime.combine(
+        wall_departure = datetime.combine(day, schedule.dep_time_local)
+        wall_arrival = datetime.combine(
             day + timedelta(days=schedule.arrival_day_offset), schedule.arr_time_local
         )
 
-        departure_utc = departure_local.replace(tzinfo=origin_tz).astimezone(ZoneInfo("UTC"))
-        arrival_utc = arrival_local.replace(tzinfo=dest_tz).astimezone(ZoneInfo("UTC"))
+        departure_utc = wall_departure.replace(tzinfo=origin_tz).astimezone(UTC)
+        arrival_utc = wall_arrival.replace(tzinfo=dest_tz).astimezone(UTC)
         duration = int((arrival_utc - departure_utc).total_seconds() // 60)
+
+        # *_local carries the airport wall clock — what the boarding pass prints. Django's
+        # DateTimeField cannot hold a naive value under USE_TZ, so the wall clock is stored in a
+        # UTC container: the digits are the local time and must never be timezone-converted.
+        departure_local = wall_departure.replace(tzinfo=UTC)
+        arrival_local = wall_arrival.replace(tzinfo=UTC)
 
         if duration <= 0:
             logger.warning(

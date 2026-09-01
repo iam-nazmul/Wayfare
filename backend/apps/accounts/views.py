@@ -7,6 +7,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+from .models import Traveller
 from .selectors import travellers_for
 from .serializers import RegisterSerializer, TravellerSerializer, UserSerializer
 
@@ -74,8 +75,11 @@ class TravellerViewSet(viewsets.ModelViewSet):
     serializer_class = TravellerSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = "public_id"
+    queryset = Traveller.objects.none()  # schema introspection runs without a real user
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Traveller.objects.none()
         return travellers_for(self.request.user)
 
     def perform_create(self, serializer) -> None:

@@ -117,7 +117,9 @@ class Flight(PublicIdModel, TimestampedModel):
 
     departure_utc = models.DateTimeField()
     arrival_utc = models.DateTimeField()
-    #: Naive local wall-clock at each airport — what the passenger reads on the boarding pass.
+    #: Airport wall clock — what the passenger reads on the boarding pass. Stored in a UTC
+    #: container because DateTimeField cannot hold a naive value under USE_TZ; the digits are
+    #: local time and must never be timezone-converted on the way out.
     departure_local = models.DateTimeField()
     arrival_local = models.DateTimeField()
     duration_minutes = models.PositiveIntegerField()

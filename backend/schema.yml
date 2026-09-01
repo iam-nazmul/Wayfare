@@ -1,0 +1,3028 @@
+openapi: 3.1.0
+info:
+  title: Wayfare API
+  version: 1.0.0
+  description: Flight inventory, booking and air-ticket management.
+paths:
+  /api/schema/:
+    get:
+      operationId: api_schema_retrieve
+      description: |-
+        OpenApi3 schema for this API. Format can be selected via content negotiation.
+
+        - YAML: application/vnd.oai.openapi
+        - JSON: application/vnd.oai.openapi+json
+      parameters:
+      - in: query
+        name: format
+        schema:
+          type: string
+          enum:
+          - json
+          - yaml
+      - in: query
+        name: lang
+        schema:
+          type: string
+          enum:
+          - af
+          - ar
+          - ar-dz
+          - ast
+          - az
+          - be
+          - bg
+          - bn
+          - br
+          - bs
+          - ca
+          - ckb
+          - cs
+          - cy
+          - da
+          - de
+          - dsb
+          - el
+          - en
+          - en-au
+          - en-gb
+          - eo
+          - es
+          - es-ar
+          - es-co
+          - es-mx
+          - es-ni
+          - es-ve
+          - et
+          - eu
+          - fa
+          - fi
+          - fr
+          - fy
+          - ga
+          - gd
+          - gl
+          - he
+          - hi
+          - hr
+          - hsb
+          - hu
+          - hy
+          - ia
+          - id
+          - ig
+          - io
+          - is
+          - it
+          - ja
+          - ka
+          - kab
+          - kk
+          - km
+          - kn
+          - ko
+          - ky
+          - lb
+          - lt
+          - lv
+          - mk
+          - ml
+          - mn
+          - mr
+          - ms
+          - my
+          - nb
+          - ne
+          - nl
+          - nn
+          - os
+          - pa
+          - pl
+          - pt
+          - pt-br
+          - ro
+          - ru
+          - sk
+          - sl
+          - sq
+          - sr
+          - sr-latn
+          - sv
+          - sw
+          - ta
+          - te
+          - tg
+          - th
+          - tk
+          - tr
+          - tt
+          - udm
+          - ug
+          - uk
+          - ur
+          - uz
+          - vi
+          - zh-hans
+          - zh-hant
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/vnd.oai.openapi:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/yaml:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/vnd.oai.openapi+json:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/aircraft:
+    get:
+      operationId: aircraft_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      tags:
+      - catalog
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Aircraft'
+          description: ''
+  /api/v1/airlines:
+    get:
+      operationId: airlines_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      tags:
+      - catalog
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Airline'
+          description: ''
+  /api/v1/airports:
+    get:
+      operationId: airports_list
+      description: 'Airport typeahead. Public: the search box is the first thing an
+        anonymous visitor uses.'
+      parameters:
+      - in: query
+        name: country
+        schema:
+          type: string
+        description: ISO-3166 alpha-2 filter
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: 'Free text: IATA code, airport or city name'
+      tags:
+      - catalog
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Airport'
+          description: ''
+  /api/v1/auth/login:
+    post:
+      operationId: auth_login_create
+      description: See ``TokenObtainPairView.post``; adds the login throttle scope.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenObtainPair'
+          description: ''
+  /api/v1/auth/logout:
+    post:
+      operationId: auth_logout_create
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/auth/refresh:
+    post:
+      operationId: auth_refresh_create
+      description: See ``TokenRefreshView.post``; rotation and blacklisting are configured
+        in SIMPLE_JWT.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/auth/register:
+    post:
+      operationId: auth_register_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/collect:
+    post:
+      operationId: collect_create
+      description: |-
+        Clickstream sink for navigator.sendBeacon.
+
+        AllowAny: the storefront is anonymous until checkout, so most funnel events have no user.
+      tags:
+      - analytics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectBatchRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CollectBatchRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CollectBatchRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/v1/currencies:
+    get:
+      operationId: currencies_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      tags:
+      - catalog
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Currency'
+          description: ''
+  /api/v1/flights/{public_id}/seatmap:
+    get:
+      operationId: flights_seatmap_list
+      description: Public seat map for a flight. Prices come from the seat rows, not
+        a pricing call.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - catalog
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Seat'
+          description: ''
+  /api/v1/me:
+    get:
+      operationId: me_retrieve
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    patch:
+      operationId: me_partial_update
+      tags:
+      - accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/v1/me/travellers/:
+    get:
+      operationId: me_travellers_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTravellerList'
+          description: ''
+    post:
+      operationId: me_travellers_create
+      tags:
+      - accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TravellerRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TravellerRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TravellerRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Traveller'
+          description: ''
+  /api/v1/me/travellers/{public_id}/:
+    get:
+      operationId: me_travellers_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Traveller'
+          description: ''
+    put:
+      operationId: me_travellers_update
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TravellerRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TravellerRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TravellerRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Traveller'
+          description: ''
+    patch:
+      operationId: me_travellers_partial_update
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTravellerRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTravellerRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTravellerRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Traveller'
+          description: ''
+    delete:
+      operationId: me_travellers_destroy
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/offers/{offer_id}:
+    get:
+      operationId: offers_retrieve
+      description: |-
+        Re-validate an offer: signature, expiry, identity.
+
+        Returns 409 ``offer_expired`` or ``offer_invalid`` rather than a stale price.
+      parameters:
+      - in: path
+        name: offer_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - search
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+          description: ''
+  /api/v1/ops/flights/:
+    get:
+      operationId: ops_flights_list
+      parameters:
+      - in: query
+        name: airline
+        schema:
+          type: string
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - in: query
+        name: destination_airport
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: query
+        name: origin_airport
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - ARRIVED
+          - BOARDING
+          - CANCELLED
+          - DELAYED
+          - DEPARTED
+          - DIVERTED
+          - SCHEDULED
+        description: |-
+          * `SCHEDULED` - Scheduled
+          * `DELAYED` - Delayed
+          * `BOARDING` - Boarding
+          * `DEPARTED` - Departed
+          * `ARRIVED` - Arrived
+          * `CANCELLED` - Cancelled
+          * `DIVERTED` - Diverted
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFlightList'
+          description: ''
+  /api/v1/ops/flights/{public_id}/:
+    get:
+      operationId: ops_flights_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightDetail'
+          description: ''
+    patch:
+      operationId: ops_flights_partial_update
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFlightOpsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFlightOpsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFlightOpsRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightOps'
+          description: ''
+  /api/v1/ops/flights/{public_id}/inventory/:
+    get:
+      operationId: ops_flights_inventory_list
+      description: |-
+        Read or adjust cabin capacity and the RBD ladder.
+
+        One action serves both verbs: two actions sharing a url_path collide in the router.
+
+        Capacity may not drop below what is already sold and held, and an RBD authorisation may
+        not drop below its own sold count — either would put the flight into a state the
+        check constraints reject.
+      parameters:
+      - in: query
+        name: airline
+        schema:
+          type: string
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - in: query
+        name: destination_airport
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: query
+        name: origin_airport
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - ARRIVED
+          - BOARDING
+          - CANCELLED
+          - DELAYED
+          - DEPARTED
+          - DIVERTED
+          - SCHEDULED
+        description: |-
+          * `SCHEDULED` - Scheduled
+          * `DELAYED` - Delayed
+          * `BOARDING` - Boarding
+          * `DEPARTED` - Departed
+          * `ARRIVED` - Arrived
+          * `CANCELLED` - Cancelled
+          * `DIVERTED` - Diverted
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCabinConfigList'
+          description: ''
+    patch:
+      operationId: ops_flights_inventory_partial_update
+      description: |-
+        Read or adjust cabin capacity and the RBD ladder.
+
+        One action serves both verbs: two actions sharing a url_path collide in the router.
+
+        Capacity may not drop below what is already sold and held, and an RBD authorisation may
+        not drop below its own sold count — either would put the flight into a state the
+        check constraints reject.
+      parameters:
+      - in: query
+        name: airline
+        schema:
+          type: string
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - in: query
+        name: destination_airport
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: query
+        name: origin_airport
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - ARRIVED
+          - BOARDING
+          - CANCELLED
+          - DELAYED
+          - DEPARTED
+          - DIVERTED
+          - SCHEDULED
+        description: |-
+          * `SCHEDULED` - Scheduled
+          * `DELAYED` - Delayed
+          * `BOARDING` - Boarding
+          * `DEPARTED` - Departed
+          * `ARRIVED` - Arrived
+          * `CANCELLED` - Cancelled
+          * `DIVERTED` - Diverted
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedInventoryUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedInventoryUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedInventoryUpdateRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCabinConfigList'
+          description: ''
+  /api/v1/ops/flights/{public_id}/manifest:
+    get:
+      operationId: ops_flights_manifest_list
+      description: Passenger manifest. Returns seats until booking lands in M3.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Seat'
+          description: ''
+  /api/v1/ops/routes/:
+    get:
+      operationId: ops_routes_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRouteList'
+          description: ''
+    post:
+      operationId: ops_routes_create
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Route'
+          description: ''
+  /api/v1/ops/routes/{id}/:
+    get:
+      operationId: ops_routes_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this route.
+        required: true
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Route'
+          description: ''
+    put:
+      operationId: ops_routes_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this route.
+        required: true
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Route'
+          description: ''
+    patch:
+      operationId: ops_routes_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this route.
+        required: true
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedRouteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedRouteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedRouteRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Route'
+          description: ''
+    delete:
+      operationId: ops_routes_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this route.
+        required: true
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/ops/schedules/:
+    get:
+      operationId: ops_schedules_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFlightScheduleList'
+          description: ''
+    post:
+      operationId: ops_schedules_create
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlightScheduleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FlightScheduleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FlightScheduleRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightSchedule'
+          description: ''
+  /api/v1/ops/schedules/{id}/:
+    get:
+      operationId: ops_schedules_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this flight schedule.
+        required: true
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightSchedule'
+          description: ''
+    put:
+      operationId: ops_schedules_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this flight schedule.
+        required: true
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlightScheduleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FlightScheduleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FlightScheduleRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightSchedule'
+          description: ''
+    patch:
+      operationId: ops_schedules_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this flight schedule.
+        required: true
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFlightScheduleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFlightScheduleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFlightScheduleRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlightSchedule'
+          description: ''
+    delete:
+      operationId: ops_schedules_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this flight schedule.
+        required: true
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/ops/schedules/{id}/materialise/:
+    post:
+      operationId: ops_schedules_materialise_create
+      description: Generate dated flights for a window. Re-running is safe — existing
+        dates are skipped.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this flight schedule.
+        required: true
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaterialiseRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MaterialiseRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MaterialiseRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '202':
+          description: No response body
+  /api/v1/ops/seat-maps/:
+    get:
+      operationId: ops_seat_maps_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSeatMapTemplateList'
+          description: ''
+    post:
+      operationId: ops_seat_maps_create
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SeatMapTemplateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SeatMapTemplateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SeatMapTemplateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeatMapTemplate'
+          description: ''
+  /api/v1/ops/seat-maps/{id}/:
+    get:
+      operationId: ops_seat_maps_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this seat map template.
+        required: true
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeatMapTemplate'
+          description: ''
+    put:
+      operationId: ops_seat_maps_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this seat map template.
+        required: true
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SeatMapTemplateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SeatMapTemplateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SeatMapTemplateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeatMapTemplate'
+          description: ''
+    patch:
+      operationId: ops_seat_maps_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this seat map template.
+        required: true
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSeatMapTemplateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSeatMapTemplateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSeatMapTemplateRequest'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeatMapTemplate'
+          description: ''
+    delete:
+      operationId: ops_seat_maps_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this seat map template.
+        required: true
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/search/calendar:
+    get:
+      operationId: search_calendar_list
+      description: |-
+        Cheapest fare per day for a month.
+
+        Reads offers already produced by real searches rather than pricing 30 days on demand: the
+        grid is a browsing aid, not a quotable price.
+      parameters:
+      - in: query
+        name: destination
+        schema:
+          type: string
+        required: true
+      - in: query
+        name: month
+        schema:
+          type: string
+        description: YYYY-MM
+        required: true
+      - in: query
+        name: origin
+        schema:
+          type: string
+        required: true
+      tags:
+      - search
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CalendarEntry'
+          description: ''
+  /api/v1/search/flights:
+    post:
+      operationId: search_flights_create
+      description: Price every viable itinerary for each slice. Offers are signed
+        and expire; they hold no inventory, which is re-checked when the booking is
+        created.
+      tags:
+      - search
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SearchRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SearchRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+          description: ''
+  /api/v1/search/flights/{search_id}/offers:
+    get:
+      operationId: search_flights_offers_list
+      description: Paginated, filterable view of one search's offers.
+      parameters:
+      - in: query
+        name: airline
+        schema:
+          type: string
+        description: Filter by marketing airline IATA code
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - in: query
+        name: max_stops
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: path
+        name: search_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: sort
+        schema:
+          type: string
+        description: price | duration | departure
+      tags:
+      - search
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOfferList'
+          description: ''
+components:
+  schemas:
+    Aircraft:
+      type: object
+      properties:
+        iata_type_code:
+          type: string
+          maxLength: 3
+        name:
+          type: string
+          maxLength: 100
+        manufacturer:
+          type: string
+          maxLength: 100
+        total_seats_default:
+          type: integer
+          maximum: 32767
+          minimum: 0
+      required:
+      - iata_type_code
+      - name
+    Airline:
+      type: object
+      properties:
+        iata_code:
+          type: string
+          maxLength: 2
+        icao_code:
+          type: string
+          maxLength: 3
+        name:
+          type: string
+          maxLength: 150
+        country:
+          type: string
+          readOnly: true
+        logo_url:
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 200
+          - type: string
+            maxLength: 0
+      required:
+      - country
+      - iata_code
+      - name
+    Airport:
+      type: object
+      properties:
+        iata_code:
+          type: string
+          maxLength: 3
+        icao_code:
+          type: string
+          maxLength: 4
+        name:
+          type: string
+          maxLength: 150
+        city:
+          type: string
+          readOnly: true
+        country:
+          type: string
+          readOnly: true
+        country_code:
+          type: string
+          readOnly: true
+        timezone:
+          type: string
+          description: IANA name; schedules are authored here
+          maxLength: 64
+        latitude:
+          type:
+          - string
+          - 'null'
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+        longitude:
+          type:
+          - string
+          - 'null'
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+      required:
+      - city
+      - country
+      - country_code
+      - iata_code
+      - name
+      - timezone
+    BlankEnum:
+      enum:
+      - ''
+    BookingClass:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        rbd:
+          type: string
+          maxLength: 1
+        authorised:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        sold:
+          type: integer
+          readOnly: true
+        held:
+          type: integer
+          readOnly: true
+        seats_available:
+          type: integer
+          readOnly: true
+        is_open:
+          type: boolean
+        sort_order:
+          type: integer
+          maximum: 32767
+          minimum: 0
+      required:
+      - held
+      - id
+      - rbd
+      - seats_available
+      - sold
+    CabinConfig:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        cabin:
+          $ref: '#/components/schemas/CabinEnum'
+        capacity:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        seats_sold:
+          type: integer
+          readOnly: true
+        seats_held:
+          type: integer
+          readOnly: true
+        oversell_allowance:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        seats_available:
+          type: integer
+          readOnly: true
+        booking_classes:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingClass'
+          readOnly: true
+      required:
+      - booking_classes
+      - cabin
+      - capacity
+      - id
+      - seats_available
+      - seats_held
+      - seats_sold
+    CabinEnum:
+      enum:
+      - ECONOMY
+      - PREMIUM_ECONOMY
+      - BUSINESS
+      - FIRST
+      type: string
+      description: |-
+        * `ECONOMY` - Economy
+        * `PREMIUM_ECONOMY` - Premium economy
+        * `BUSINESS` - Business
+        * `FIRST` - First
+    CalendarEntry:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        cheapest:
+          type:
+          - object
+          - 'null'
+          additionalProperties:
+            type: string
+      required:
+      - cheapest
+      - date
+    CollectBatchRequest:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/CollectEventRequest'
+          maxItems: 100
+          minItems: 1
+      required:
+      - events
+    CollectEventRequest:
+      type: object
+      properties:
+        event_name:
+          $ref: '#/components/schemas/EventNameEnum'
+        event_time:
+          type: string
+          format: date-time
+        session_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        anon_id:
+          type: string
+          maxLength: 64
+        page_path:
+          type: string
+          maxLength: 512
+        referrer:
+          type: string
+          maxLength: 512
+        props:
+          type: object
+          additionalProperties: {}
+      required:
+      - event_name
+      - session_id
+    Currency:
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 3
+        name:
+          type: string
+          maxLength: 64
+        symbol:
+          type: string
+          maxLength: 8
+        minor_units:
+          type: integer
+          maximum: 32767
+          minimum: 0
+      required:
+      - code
+      - name
+    DocTypeEnum:
+      enum:
+      - PASSPORT
+      - NATIONAL_ID
+      - DRIVING_LICENCE
+      type: string
+      description: |-
+        * `PASSPORT` - Passport
+        * `NATIONAL_ID` - National ID
+        * `DRIVING_LICENCE` - Driving licence
+    EventNameEnum:
+      enum:
+      - page_view
+      - search_submitted
+      - search_results_rendered
+      - filter_applied
+      - sort_changed
+      - offer_viewed
+      - offer_selected
+      - pax_details_started
+      - pax_details_completed
+      - ancillary_added
+      - ancillary_removed
+      - seat_selected
+      - payment_started
+      - payment_failed
+      - booking_confirmed
+      - checkin_started
+      - checkin_completed
+      - error_shown
+      - api_latency
+      type: string
+      description: |-
+        * `page_view` - page_view
+        * `search_submitted` - search_submitted
+        * `search_results_rendered` - search_results_rendered
+        * `filter_applied` - filter_applied
+        * `sort_changed` - sort_changed
+        * `offer_viewed` - offer_viewed
+        * `offer_selected` - offer_selected
+        * `pax_details_started` - pax_details_started
+        * `pax_details_completed` - pax_details_completed
+        * `ancillary_added` - ancillary_added
+        * `ancillary_removed` - ancillary_removed
+        * `seat_selected` - seat_selected
+        * `payment_started` - payment_started
+        * `payment_failed` - payment_failed
+        * `booking_confirmed` - booking_confirmed
+        * `checkin_started` - checkin_started
+        * `checkin_completed` - checkin_completed
+        * `error_shown` - error_shown
+        * `api_latency` - api_latency
+    Flight:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+          readOnly: true
+        designator:
+          type: string
+          readOnly: true
+        airline:
+          type: string
+          readOnly: true
+        flight_number:
+          type: string
+          readOnly: true
+        origin:
+          type: string
+          readOnly: true
+        destination:
+          type: string
+          readOnly: true
+        departure_utc:
+          type: string
+          format: date-time
+          readOnly: true
+        arrival_utc:
+          type: string
+          format: date-time
+          readOnly: true
+        departure_local:
+          type: string
+          format: date-time
+          readOnly: true
+        arrival_local:
+          type: string
+          format: date-time
+          readOnly: true
+        duration_minutes:
+          type: integer
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/FlightStatusEnum'
+          readOnly: true
+        gate:
+          type: string
+          readOnly: true
+        terminal:
+          type: string
+          readOnly: true
+        delay_minutes:
+          type: integer
+          readOnly: true
+      required:
+      - airline
+      - arrival_local
+      - arrival_utc
+      - delay_minutes
+      - departure_local
+      - departure_utc
+      - designator
+      - destination
+      - duration_minutes
+      - flight_number
+      - gate
+      - origin
+      - public_id
+      - status
+      - terminal
+    FlightDetail:
+      type: object
+      description: See ``FlightSerializer``; adds nested inventory and the full airport
+        records.
+      properties:
+        public_id:
+          type: string
+          format: uuid
+          readOnly: true
+        designator:
+          type: string
+          readOnly: true
+        airline:
+          type: string
+          readOnly: true
+        flight_number:
+          type: string
+          readOnly: true
+        origin:
+          type: string
+          readOnly: true
+        destination:
+          type: string
+          readOnly: true
+        departure_utc:
+          type: string
+          format: date-time
+          readOnly: true
+        arrival_utc:
+          type: string
+          format: date-time
+          readOnly: true
+        departure_local:
+          type: string
+          format: date-time
+          readOnly: true
+        arrival_local:
+          type: string
+          format: date-time
+          readOnly: true
+        duration_minutes:
+          type: integer
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/FlightStatusEnum'
+          readOnly: true
+        gate:
+          type: string
+          readOnly: true
+        terminal:
+          type: string
+          readOnly: true
+        delay_minutes:
+          type: integer
+          readOnly: true
+        origin_airport:
+          allOf:
+          - $ref: '#/components/schemas/Airport'
+          readOnly: true
+        destination_airport:
+          allOf:
+          - $ref: '#/components/schemas/Airport'
+          readOnly: true
+        cabins:
+          type: array
+          items:
+            $ref: '#/components/schemas/CabinConfig'
+          readOnly: true
+      required:
+      - airline
+      - arrival_local
+      - arrival_utc
+      - cabins
+      - delay_minutes
+      - departure_local
+      - departure_utc
+      - designator
+      - destination
+      - destination_airport
+      - duration_minutes
+      - flight_number
+      - gate
+      - origin
+      - origin_airport
+      - public_id
+      - status
+      - terminal
+    FlightOps:
+      type: object
+      description: Writable ops view — only the operational fields, never the inventory
+        counters.
+      properties:
+        public_id:
+          type: string
+          format: uuid
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/FlightStatusEnum'
+        gate:
+          type: string
+          maxLength: 8
+        terminal:
+          type: string
+          maxLength: 8
+        delay_minutes:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        actual_departure_utc:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - public_id
+    FlightSchedule:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        airline:
+          type: string
+        flight_number:
+          type: string
+          maxLength: 5
+        route:
+          type: integer
+        aircraft:
+          type: integer
+        seat_map_template:
+          type: integer
+        dep_time_local:
+          type: string
+          format: time
+        arr_time_local:
+          type: string
+          format: time
+        arrival_day_offset:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        days_of_week:
+          type: array
+          items:
+            type: boolean
+          maxItems: 7
+        effective_from:
+          type: string
+          format: date
+        effective_to:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/ScheduleStatusEnum'
+        default_cabin_capacity:
+          description: '{"ECONOMY": 162, "BUSINESS": 18}'
+      required:
+      - aircraft
+      - airline
+      - arr_time_local
+      - dep_time_local
+      - effective_from
+      - effective_to
+      - flight_number
+      - id
+      - route
+      - seat_map_template
+    FlightScheduleRequest:
+      type: object
+      properties:
+        airline:
+          type: string
+          minLength: 1
+        flight_number:
+          type: string
+          minLength: 1
+          maxLength: 5
+        route:
+          type: integer
+        aircraft:
+          type: integer
+        seat_map_template:
+          type: integer
+        dep_time_local:
+          type: string
+          format: time
+        arr_time_local:
+          type: string
+          format: time
+        arrival_day_offset:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        days_of_week:
+          type: array
+          items:
+            type: boolean
+          maxItems: 7
+        effective_from:
+          type: string
+          format: date
+        effective_to:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/ScheduleStatusEnum'
+        default_cabin_capacity:
+          description: '{"ECONOMY": 162, "BUSINESS": 18}'
+      required:
+      - aircraft
+      - airline
+      - arr_time_local
+      - dep_time_local
+      - effective_from
+      - effective_to
+      - flight_number
+      - route
+      - seat_map_template
+    FlightStatusEnum:
+      enum:
+      - SCHEDULED
+      - DELAYED
+      - BOARDING
+      - DEPARTED
+      - ARRIVED
+      - CANCELLED
+      - DIVERTED
+      type: string
+      description: |-
+        * `SCHEDULED` - Scheduled
+        * `DELAYED` - Delayed
+        * `BOARDING` - Boarding
+        * `DEPARTED` - Departed
+        * `ARRIVED` - Arrived
+        * `CANCELLED` - Cancelled
+        * `DIVERTED` - Diverted
+    GenderEnum:
+      enum:
+      - M
+      - F
+      - X
+      type: string
+      description: |-
+        * `M` - Male
+        * `F` - Female
+        * `X` - Unspecified
+    MaterialiseRequest:
+      type: object
+      properties:
+        days:
+          type: integer
+          maximum: 365
+          minimum: 1
+          default: 90
+    Offer:
+      type: object
+      properties:
+        offer_id:
+          type: string
+          format: uuid
+          readOnly: true
+        itinerary:
+          readOnly: true
+        price_breakdown:
+          readOnly: true
+        total:
+          type: object
+          additionalProperties:
+            type: string
+          readOnly: true
+        currency:
+          type: string
+          readOnly: true
+        seats_remaining:
+          type: integer
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - currency
+      - expires_at
+      - itinerary
+      - offer_id
+      - price_breakdown
+      - seats_remaining
+      - total
+    PaginatedCabinConfigList:
+      type: object
+      required:
+      - results
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CabinConfig'
+        next:
+          type: string
+          nullable: true
+          format: uri
+        previous:
+          type: string
+          nullable: true
+          format: uri
+    PaginatedFlightList:
+      type: object
+      required:
+      - results
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Flight'
+        next:
+          type: string
+          nullable: true
+          format: uri
+        previous:
+          type: string
+          nullable: true
+          format: uri
+    PaginatedFlightScheduleList:
+      type: object
+      required:
+      - results
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlightSchedule'
+        next:
+          type: string
+          nullable: true
+          format: uri
+        previous:
+          type: string
+          nullable: true
+          format: uri
+    PaginatedOfferList:
+      type: object
+      required:
+      - results
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Offer'
+        next:
+          type: string
+          nullable: true
+          format: uri
+        previous:
+          type: string
+          nullable: true
+          format: uri
+    PaginatedRouteList:
+      type: object
+      required:
+      - results
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Route'
+        next:
+          type: string
+          nullable: true
+          format: uri
+        previous:
+          type: string
+          nullable: true
+          format: uri
+    PaginatedSeatMapTemplateList:
+      type: object
+      required:
+      - results
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SeatMapTemplate'
+        next:
+          type: string
+          nullable: true
+          format: uri
+        previous:
+          type: string
+          nullable: true
+          format: uri
+    PaginatedTravellerList:
+      type: object
+      required:
+      - results
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Traveller'
+        next:
+          type: string
+          nullable: true
+          format: uri
+        previous:
+          type: string
+          nullable: true
+          format: uri
+    PassengersRequest:
+      type: object
+      properties:
+        adults:
+          type: integer
+          maximum: 9
+          minimum: 1
+          default: 1
+        children:
+          type: integer
+          maximum: 8
+          minimum: 0
+          default: 0
+        infants:
+          type: integer
+          maximum: 9
+          minimum: 0
+          default: 0
+    PatchedFlightOpsRequest:
+      type: object
+      description: Writable ops view — only the operational fields, never the inventory
+        counters.
+      properties:
+        status:
+          $ref: '#/components/schemas/FlightStatusEnum'
+        gate:
+          type: string
+          maxLength: 8
+        terminal:
+          type: string
+          maxLength: 8
+        delay_minutes:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        actual_departure_utc:
+          type:
+          - string
+          - 'null'
+          format: date-time
+    PatchedFlightScheduleRequest:
+      type: object
+      properties:
+        airline:
+          type: string
+          minLength: 1
+        flight_number:
+          type: string
+          minLength: 1
+          maxLength: 5
+        route:
+          type: integer
+        aircraft:
+          type: integer
+        seat_map_template:
+          type: integer
+        dep_time_local:
+          type: string
+          format: time
+        arr_time_local:
+          type: string
+          format: time
+        arrival_day_offset:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        days_of_week:
+          type: array
+          items:
+            type: boolean
+          maxItems: 7
+        effective_from:
+          type: string
+          format: date
+        effective_to:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/ScheduleStatusEnum'
+        default_cabin_capacity:
+          description: '{"ECONOMY": 162, "BUSINESS": 18}'
+    PatchedInventoryUpdateRequest:
+      type: object
+      description: Ops edit of the RBD ladder. Sold and held are never client-writable.
+      properties:
+        cabin:
+          type: string
+          minLength: 1
+        capacity:
+          type: integer
+          maximum: 1000
+          minimum: 0
+        oversell_allowance:
+          type: integer
+          maximum: 50
+          minimum: 0
+        booking_classes:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+    PatchedRouteRequest:
+      type: object
+      properties:
+        airline:
+          type: string
+          minLength: 1
+        origin_airport:
+          type: string
+          minLength: 1
+        destination_airport:
+          type: string
+          minLength: 1
+        is_active:
+          type: boolean
+    PatchedSeatMapTemplateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        aircraft:
+          type: integer
+        layout: {}
+    PatchedTravellerRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        dob:
+          type:
+          - string
+          - 'null'
+          format: date
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        nationality:
+          type: string
+          maxLength: 2
+        doc_type:
+          oneOf:
+          - $ref: '#/components/schemas/DocTypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        doc_number:
+          type: string
+          writeOnly: true
+          maxLength: 64
+        doc_expiry:
+          type:
+          - string
+          - 'null'
+          format: date
+        doc_issuing_country:
+          type: string
+          maxLength: 2
+        frequent_flyer_number:
+          type: string
+          maxLength: 32
+        is_primary:
+          type: boolean
+    PatchedUserRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        phone:
+          type: string
+          maxLength: 32
+        locale:
+          type: string
+          minLength: 1
+          maxLength: 10
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 10
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        phone:
+          type: string
+          maxLength: 32
+      required:
+      - email
+      - password
+    Route:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        airline:
+          type: string
+        origin_airport:
+          type: string
+        destination_airport:
+          type: string
+        is_active:
+          type: boolean
+      required:
+      - airline
+      - destination_airport
+      - id
+      - origin_airport
+    RouteRequest:
+      type: object
+      properties:
+        airline:
+          type: string
+          minLength: 1
+        origin_airport:
+          type: string
+          minLength: 1
+        destination_airport:
+          type: string
+          minLength: 1
+        is_active:
+          type: boolean
+      required:
+      - airline
+      - destination_airport
+      - origin_airport
+    ScheduleStatusEnum:
+      enum:
+      - ACTIVE
+      - SUSPENDED
+      - RETIRED
+      type: string
+      description: |-
+        * `ACTIVE` - Active
+        * `SUSPENDED` - Suspended
+        * `RETIRED` - Retired
+    SearchRequestRequest:
+      type: object
+      properties:
+        trip_type:
+          allOf:
+          - $ref: '#/components/schemas/TripTypeEnum'
+          default: ONE_WAY
+        slices:
+          type: array
+          items:
+            $ref: '#/components/schemas/SliceRequest'
+        passengers:
+          $ref: '#/components/schemas/PassengersRequest'
+        cabin:
+          allOf:
+          - $ref: '#/components/schemas/CabinEnum'
+          default: ECONOMY
+        currency:
+          type: string
+          minLength: 1
+          default: USD
+          maxLength: 3
+        max_stops:
+          type: integer
+          maximum: 2
+          minimum: 0
+          default: 1
+      required:
+      - passengers
+      - slices
+    SearchResponse:
+      type: object
+      properties:
+        trip_type:
+          type: string
+        currency:
+          type: string
+        partial:
+          type: boolean
+        slices:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchSliceResult'
+      required:
+      - currency
+      - partial
+      - slices
+      - trip_type
+    SearchSliceResult:
+      type: object
+      properties:
+        index:
+          type: integer
+        search_id:
+          type: string
+          format: uuid
+        origin:
+          type: string
+        destination:
+          type: string
+        date:
+          type: string
+          format: date
+        offers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Offer'
+      required:
+      - date
+      - destination
+      - index
+      - offers
+      - origin
+      - search_id
+    Seat:
+      type: object
+      properties:
+        seat_number:
+          type: string
+          readOnly: true
+        row:
+          type: integer
+          readOnly: true
+        column:
+          type: string
+          readOnly: true
+        cabin:
+          allOf:
+          - $ref: '#/components/schemas/CabinEnum'
+          readOnly: true
+        characteristics:
+          type: array
+          items:
+            type: string
+            maxLength: 20
+          readOnly: true
+        is_exit_row:
+          type: boolean
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/SeatStatusEnum'
+          readOnly: true
+        seat_fee_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        seat_fee_currency:
+          type: string
+          readOnly: true
+      required:
+      - cabin
+      - characteristics
+      - column
+      - is_exit_row
+      - row
+      - seat_fee_amount
+      - seat_fee_currency
+      - seat_number
+      - status
+    SeatMapTemplate:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        aircraft:
+          type: integer
+        layout: {}
+      required:
+      - aircraft
+      - id
+      - name
+    SeatMapTemplateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        aircraft:
+          type: integer
+        layout: {}
+      required:
+      - aircraft
+      - name
+    SeatStatusEnum:
+      enum:
+      - AVAILABLE
+      - HELD
+      - ASSIGNED
+      - BLOCKED
+      type: string
+      description: |-
+        * `AVAILABLE` - Available
+        * `HELD` - Held
+        * `ASSIGNED` - Assigned
+        * `BLOCKED` - Blocked
+    SliceRequest:
+      type: object
+      properties:
+        origin:
+          type: string
+          minLength: 3
+          maxLength: 3
+        destination:
+          type: string
+          minLength: 3
+          maxLength: 3
+        date:
+          type: string
+          format: date
+      required:
+      - date
+      - destination
+      - origin
+    TokenObtainPair:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - refresh
+    TokenObtainPairRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - password
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TokenRefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+      required:
+      - refresh
+    Traveller:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+          readOnly: true
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        dob:
+          type:
+          - string
+          - 'null'
+          format: date
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        nationality:
+          type: string
+          maxLength: 2
+        doc_type:
+          oneOf:
+          - $ref: '#/components/schemas/DocTypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        doc_expiry:
+          type:
+          - string
+          - 'null'
+          format: date
+        doc_issuing_country:
+          type: string
+          maxLength: 2
+        frequent_flyer_number:
+          type: string
+          maxLength: 32
+        is_primary:
+          type: boolean
+      required:
+      - first_name
+      - last_name
+      - public_id
+    TravellerRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        dob:
+          type:
+          - string
+          - 'null'
+          format: date
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        nationality:
+          type: string
+          maxLength: 2
+        doc_type:
+          oneOf:
+          - $ref: '#/components/schemas/DocTypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        doc_number:
+          type: string
+          writeOnly: true
+          maxLength: 64
+        doc_expiry:
+          type:
+          - string
+          - 'null'
+          format: date
+        doc_issuing_country:
+          type: string
+          maxLength: 2
+        frequent_flyer_number:
+          type: string
+          maxLength: 32
+        is_primary:
+          type: boolean
+      required:
+      - first_name
+      - last_name
+    TripTypeEnum:
+      enum:
+      - ONE_WAY
+      - ROUND_TRIP
+      - MULTI_CITY
+      type: string
+      description: |-
+        * `ONE_WAY` - One way
+        * `ROUND_TRIP` - Round trip
+        * `MULTI_CITY` - Multi city
+    User:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        phone:
+          type: string
+          maxLength: 32
+        locale:
+          type: string
+          maxLength: 10
+        mfa_enabled:
+          type: boolean
+          readOnly: true
+        roles:
+          type: array
+          items:
+            type: string
+          readOnly: true
+      required:
+      - email
+      - mfa_enabled
+      - public_id
+      - roles
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

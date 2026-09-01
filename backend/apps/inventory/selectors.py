@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timedelta
+from datetime import date
 
 from django.db.models import QuerySet
 from django.utils import timezone
@@ -19,16 +19,16 @@ def sellable_flights_on(origin: str, destination: str, day: date) -> QuerySet[Fl
     The window is built in UTC around the origin's day so a late-evening departure is not lost
     to the timezone offset.
     """
-    start = timezone.make_aware(datetime.combine(day, time.min), timezone.utc) - timedelta(hours=14)
-    end = timezone.make_aware(datetime.combine(day, time.max), timezone.utc) + timedelta(hours=14)
-
+    # Match on the airport wall clock, not a padded UTC window: "flights on the 8th" means the
+    # local calendar day at the origin. A UTC window wide enough to cover every offset spans
+    # ~52 hours and pulls in the next day's operation of the same flight number.
     return (
         flights_base()
         .filter(
             origin_airport_id=origin.upper(),
             destination_airport_id=destination.upper(),
-            departure_utc__gte=max(start, timezone.now()),
-            departure_utc__lte=end,
+            departure_local__date=day,
+            departure_utc__gte=timezone.now(),
             status__in=SELLABLE_FLIGHT_STATUSES,
         )
         .order_by("departure_utc")
@@ -37,15 +37,12 @@ def sellable_flights_on(origin: str, destination: str, day: date) -> QuerySet[Fl
 
 def connections_from(origin: str, day: date) -> QuerySet[Flight]:
     """All sellable departures from an airport on a day — the first hop of a connection search."""
-    start = timezone.make_aware(datetime.combine(day, time.min), timezone.utc) - timedelta(hours=14)
-    end = timezone.make_aware(datetime.combine(day, time.max), timezone.utc) + timedelta(hours=14)
-
     return (
         flights_base()
         .filter(
             origin_airport_id=origin.upper(),
-            departure_utc__gte=max(start, timezone.now()),
-            departure_utc__lte=end,
+            departure_local__date=day,
+            departure_utc__gte=timezone.now(),
             status__in=SELLABLE_FLIGHT_STATUSES,
         )
         .order_by("departure_utc")
