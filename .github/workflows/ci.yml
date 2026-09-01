@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: wayfare
+          POSTGRES_USER: wayfare
+          POSTGRES_PASSWORD: wayfare
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U wayfare" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s
+          --health-timeout 3s --health-retries 10
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      SECRET_KEY: ci-secret-key
+      DATABASE_URL: postgres://wayfare:wayfare@localhost:5432/wayfare
+      REDIS_URL: redis://localhost:6379
+      ANALYTICS_ENABLED: '0'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv pip install --system -r pyproject.toml --extra dev
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Django checks
+        run: python manage.py check --fail-level WARNING
+
+      - name: Tests
+        run: pytest -q --cov=apps --cov-report=term-missing
+
+      - name: OpenAPI schema builds
+        run: python manage.py spectacular --file schema.yml --validate
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openapi-schema
+          path: backend/schema.yml
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npx vitest run
+      - run: npm run build
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose topology
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+          echo "compose config valid"

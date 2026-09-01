@@ -1,0 +1,9 @@
+<clickhouse>
+    <logger>
+        <level>warning</level>
+        <console>1</console>
+    </logger>
+    <listen_host>0.0.0.0</listen_host>
+    <max_server_memory_usage_to_ram_ratio>0.6</max_server_memory_usage_to_ram_ratio>
+    <asynchronous_insert_log remove="1"/>
+</clickhouse>
