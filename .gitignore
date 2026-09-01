@@ -1,0 +1,33 @@
+# Claude Code — personal overrides, never committed
+.claude/settings.local.json
+
+# Secrets
+.env
+backend/.env
+frontend/.env
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Node
+node_modules/
+dist/
+.vite/
+playwright-report/
+test-results/
+
+# Django
+staticfiles/
+media/
+
+# OS / editors
+.DS_Store
+*.swp
