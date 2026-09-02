@@ -12,6 +12,9 @@ const Payment = lazy(() => import('./features/payment/PaymentPage'));
 const FindBooking = lazy(() => import('./features/manage/FindBookingPage'));
 const ManageBooking = lazy(() => import('./features/manage/ManageBookingPage'));
 const Login = lazy(() => import('./features/auth/LoginPage'));
+const Register = lazy(() => import('./features/auth/RegisterPage'));
+const MyBookings = lazy(() => import('./features/account/MyBookingsPage'));
+const TicketView = lazy(() => import('./features/manage/TicketPage'));
 const OpsLayout = lazy(() => import('./features/ops/OpsLayout'));
 const OpsReports = lazy(() => import('./features/ops/ReportsPage'));
 const OpsRefunds = lazy(() => import('./features/ops/RefundQueuePage'));
@@ -38,7 +41,10 @@ export const router = createBrowserRouter([
       { path: 'booking/:pnr/pay', element: lazyRoute(Payment) },
       { path: 'manage', element: lazyRoute(FindBooking) },
       { path: 'manage/:pnr', element: lazyRoute(ManageBooking) },
+      { path: 'manage/:pnr/ticket', element: lazyRoute(TicketView) },
       { path: 'login', element: lazyRoute(Login) },
+      { path: 'register', element: lazyRoute(Register) },
+      { path: 'account/bookings', element: lazyRoute(MyBookings) },
       {
         path: 'ops',
         element: lazyRoute(OpsLayout),

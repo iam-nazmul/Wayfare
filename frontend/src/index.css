@@ -29,3 +29,47 @@
     @apply outline-2 outline-offset-2 outline-brand-600;
   }
 }
+
+/* Printing an e-ticket is how a traveller "downloads" it: the browser's print dialog saves a
+   PDF. Everything that is not the ticket itself is dropped, and a ticket never splits across
+   two pages. */
+@media print {
+  /* Drop the app's chrome, then put the ticket's own header and footer back: they carry the
+     PNR and the "not a boarding pass" notice, and a depth-based selector cannot tell them
+     apart from the shell's. */
+  .no-print,
+  header,
+  footer,
+  nav {
+    display: none !important;
+  }
+
+  .ticket > header {
+    display: flex !important;
+  }
+
+  .ticket > footer {
+    display: block !important;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .ticket {
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ticket + .ticket {
+    margin-top: 1.5rem;
+  }
+
+  /* Keep the ticket readable on paper rather than inheriting the screen's tinted ground. */
+  body {
+    background: #fff !important;
+  }
+}

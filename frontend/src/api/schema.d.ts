@@ -467,6 +467,28 @@ export interface paths {
         patch: operations["me_partial_update"];
         trace?: never;
     };
+    "/api/v1/me/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Every booking made while signed in, newest first.
+         *
+         *     Ownership is the selector's job, not this view's: `bookings_for` filters to the caller
+         *     (CLAUDE.md invariant 8), so there is no way to widen it from here.
+         */
+        get: operations["me_bookings_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/travellers/": {
         parameters: {
             query?: never;
@@ -911,7 +933,7 @@ export interface components {
             readonly pnr: string;
             /** Format: uuid */
             readonly public_id: string;
-            readonly status: components["schemas"]["BookingStatusEnum"];
+            readonly status: components["schemas"]["Status02aEnum"];
             readonly trip_type: components["schemas"]["TripTypeEnum"];
             readonly currency: string;
             readonly base: string;
@@ -983,22 +1005,21 @@ export interface components {
          * @enum {string}
          */
         BookingSegmentStatusEnum: "HELD" | "CONFIRMED" | "FLOWN" | "CANCELLED";
-        /**
-         * @description * `DRAFT` - Draft
-         *     * `HELD` - Held
-         *     * `PENDING_TICKETING` - Pending ticketing
-         *     * `TICKETED` - Ticketed
-         *     * `CONFIRMED` - Confirmed
-         *     * `CHANGE_PENDING` - Change pending
-         *     * `DISRUPTED` - Disrupted
-         *     * `REBOOKED` - Rebooked
-         *     * `CANCELLED` - Cancelled
-         *     * `REFUND_PENDING` - Refund pending
-         *     * `REFUNDED` - Refunded
-         *     * `EXPIRED` - Expired
-         * @enum {string}
-         */
-        BookingStatusEnum: "DRAFT" | "HELD" | "PENDING_TICKETING" | "TICKETED" | "CONFIRMED" | "CHANGE_PENDING" | "DISRUPTED" | "REBOOKED" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED" | "EXPIRED";
+        /** @description The row shape for "my bookings" — enough to recognise a trip, not the whole PNR. */
+        BookingSummary: {
+            readonly pnr: string;
+            readonly status: components["schemas"]["Status02aEnum"];
+            readonly trip_type: components["schemas"]["TripTypeEnum"];
+            readonly origin: string;
+            readonly destination: string;
+            readonly departure_local: string;
+            readonly passenger_count: number;
+            readonly total: string;
+            /** Format: date-time */
+            readonly booked_at: string | null;
+            /** Format: date-time */
+            readonly hold_expires_at: string | null;
+        };
         CabinConfig: {
             readonly id: number;
             cabin: components["schemas"]["CabinEnum"];
@@ -1270,6 +1291,13 @@ export interface components {
             readonly seats_remaining: number;
             /** Format: date-time */
             readonly expires_at: string;
+        };
+        PaginatedBookingSummaryList: {
+            results: components["schemas"]["BookingSummary"][];
+            /** Format: uri */
+            next?: string | null;
+            /** Format: uri */
+            previous?: string | null;
         };
         PaginatedCabinConfigList: {
             results: components["schemas"]["CabinConfig"][];
@@ -1653,6 +1681,22 @@ export interface components {
             date: string;
         };
         /**
+         * @description * `DRAFT` - Draft
+         *     * `HELD` - Held
+         *     * `PENDING_TICKETING` - Pending ticketing
+         *     * `TICKETED` - Ticketed
+         *     * `CONFIRMED` - Confirmed
+         *     * `CHANGE_PENDING` - Change pending
+         *     * `DISRUPTED` - Disrupted
+         *     * `REBOOKED` - Rebooked
+         *     * `CANCELLED` - Cancelled
+         *     * `REFUND_PENDING` - Refund pending
+         *     * `REFUNDED` - Refunded
+         *     * `EXPIRED` - Expired
+         * @enum {string}
+         */
+        Status02aEnum: "DRAFT" | "HELD" | "PENDING_TICKETING" | "TICKETED" | "CONFIRMED" | "CHANGE_PENDING" | "DISRUPTED" | "REBOOKED" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED" | "EXPIRED";
+        /**
          * @description * `NOT_REQUIRED` - Not required
          *     * `REQUIRED` - Required
          *     * `AUTHENTICATED` - Authenticated
@@ -1680,6 +1724,12 @@ export interface components {
             readonly destination: string;
             /** Format: date-time */
             readonly departure_local: string;
+            /** Format: date-time */
+            readonly arrival_local: string;
+            readonly duration_minutes: number;
+            readonly cabin: string;
+            readonly rbd: string;
+            readonly fare_basis: string;
             /** Format: date-time */
             readonly flown_at: string | null;
         };
@@ -2432,6 +2482,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["User"];
+                };
+            };
+        };
+    };
+    me_bookings_list: {
+        parameters: {
+            query?: {
+                /** @description The pagination cursor value. */
+                cursor?: string;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description Number of results to return per page. */
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedBookingSummaryList"];
                 };
             };
         };

@@ -19,6 +19,11 @@ export function Layout() {
             <Link to="/manage" className="hover:text-ink">
               Manage booking
             </Link>
+            {user && (
+              <Link to="/account/bookings" className="hover:text-ink">
+                My bookings
+              </Link>
+            )}
             {isStaff(user) && (
               <Link to="/ops/reports" className="hover:text-ink">
                 Ops
@@ -35,9 +40,14 @@ export function Layout() {
                 Sign out
               </button>
             ) : (
-              <Link to="/login" className="hover:text-ink">
-                Sign in
-              </Link>
+              <>
+                <Link to="/login" className="hover:text-ink">
+                  Sign in
+                </Link>
+                <Link to="/register" className="hover:text-ink">
+                  Sign up
+                </Link>
+              </>
             )}
           </nav>
         </div>

@@ -312,3 +312,44 @@ class ChangeQuoteSerializer(serializers.Serializer):
 class ChangeConfirmResponseSerializer(serializers.Serializer):
     booking = BookingSerializer()
     quote = ChangeQuoteSerializer()
+
+
+class BookingSummarySerializer(serializers.ModelSerializer):
+    """The row shape for "my bookings" — enough to recognise a trip, not the whole PNR."""
+
+    origin = serializers.SerializerMethodField()
+    destination = serializers.SerializerMethodField()
+    departure_local = serializers.SerializerMethodField()
+    passenger_count = serializers.SerializerMethodField()
+    total = MoneyField("total_amount", read_only=True, source="*")
+
+    class Meta:
+        model = Booking
+        fields = [
+            "pnr", "status", "trip_type", "origin", "destination", "departure_local",
+            "passenger_count", "total", "booked_at", "hold_expires_at",
+        ]
+        read_only_fields = fields
+
+    def _segments(self, booking: Booking) -> list:
+        # Cancelled segments stay on the booking after an exchange; the live journey is what
+        # the traveller recognises.
+        live = [
+            segment for segment in booking.segments.all() if segment.status != "CANCELLED"
+        ]
+        return live or list(booking.segments.all())
+
+    def get_origin(self, booking: Booking) -> str:
+        segments = self._segments(booking)
+        return segments[0].flight.origin_airport_id if segments else ""
+
+    def get_destination(self, booking: Booking) -> str:
+        segments = self._segments(booking)
+        return segments[-1].flight.destination_airport_id if segments else ""
+
+    def get_departure_local(self, booking: Booking):
+        segments = self._segments(booking)
+        return segments[0].flight.departure_local if segments else None
+
+    def get_passenger_count(self, booking: Booking) -> int:
+        return len(booking.passengers.all())

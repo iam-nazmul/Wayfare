@@ -7,18 +7,20 @@ from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 from rest_framework.generics import ListAPIView
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.common.idempotency import idempotent
+from apps.common.pagination import WayfareCursorPagination
 from apps.pricing.constants import TripType
 
-from .models import Offer, SearchQuery
-from .selectors import booking_for, guest_booking
+from .models import Booking, Offer, SearchQuery
+from .selectors import booking_for, bookings_for, guest_booking
 from .serializers import (
     BookingCreateSerializer,
     BookingSerializer,
+    BookingSummarySerializer,
     CalendarEntrySerializer,
     CancelRequestSerializer,
     CancelResponseSerializer,
@@ -456,3 +458,21 @@ def _owned_booking_or_404(request, pnr: str):
     if booking is None:
         raise NotFound("No booking matches those details.")
     return booking
+
+
+@extend_schema(tags=["accounts"], responses={200: BookingSummarySerializer(many=True)})
+class MyBookingsView(ListAPIView):
+    """Every booking made while signed in, newest first.
+
+    Ownership is the selector's job, not this view's: `bookings_for` filters to the caller
+    (CLAUDE.md invariant 8), so there is no way to widen it from here.
+    """
+
+    serializer_class = BookingSummarySerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = WayfareCursorPagination
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Booking.objects.none()
+        return bookings_for(self.request.user).order_by("-created_at")

@@ -904,6 +904,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/User'
           description: ''
+  /api/v1/me/bookings:
+    get:
+      operationId: me_bookings_list
+      description: |-
+        Every booking made while signed in, newest first.
+
+        Ownership is the selector's job, not this view's: `bookings_for` filters to the caller
+        (CLAUDE.md invariant 8), so there is no way to widen it from here.
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      tags:
+      - accounts
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBookingSummaryList'
+          description: ''
   /api/v1/me/travellers/:
     get:
       operationId: me_travellers_list
@@ -2315,7 +2353,7 @@ components:
           readOnly: true
         status:
           allOf:
-          - $ref: '#/components/schemas/BookingStatusEnum'
+          - $ref: '#/components/schemas/Status02aEnum'
           readOnly: true
         trip_type:
           allOf:
@@ -2532,34 +2570,60 @@ components:
         * `CONFIRMED` - Confirmed
         * `FLOWN` - Flown
         * `CANCELLED` - Cancelled
-    BookingStatusEnum:
-      enum:
-      - DRAFT
-      - HELD
-      - PENDING_TICKETING
-      - TICKETED
-      - CONFIRMED
-      - CHANGE_PENDING
-      - DISRUPTED
-      - REBOOKED
-      - CANCELLED
-      - REFUND_PENDING
-      - REFUNDED
-      - EXPIRED
-      type: string
-      description: |-
-        * `DRAFT` - Draft
-        * `HELD` - Held
-        * `PENDING_TICKETING` - Pending ticketing
-        * `TICKETED` - Ticketed
-        * `CONFIRMED` - Confirmed
-        * `CHANGE_PENDING` - Change pending
-        * `DISRUPTED` - Disrupted
-        * `REBOOKED` - Rebooked
-        * `CANCELLED` - Cancelled
-        * `REFUND_PENDING` - Refund pending
-        * `REFUNDED` - Refunded
-        * `EXPIRED` - Expired
+    BookingSummary:
+      type: object
+      description: The row shape for "my bookings" — enough to recognise a trip, not
+        the whole PNR.
+      properties:
+        pnr:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/Status02aEnum'
+          readOnly: true
+        trip_type:
+          allOf:
+          - $ref: '#/components/schemas/TripTypeEnum'
+          readOnly: true
+        origin:
+          type: string
+          readOnly: true
+        destination:
+          type: string
+          readOnly: true
+        departure_local:
+          type: string
+          readOnly: true
+        passenger_count:
+          type: integer
+          readOnly: true
+        total:
+          type: string
+          readOnly: true
+        booked_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        hold_expires_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+      required:
+      - booked_at
+      - departure_local
+      - destination
+      - hold_expires_at
+      - origin
+      - passenger_count
+      - pnr
+      - status
+      - total
+      - trip_type
     CabinConfig:
       type: object
       properties:
@@ -3248,6 +3312,23 @@ components:
       - price_breakdown
       - seats_remaining
       - total
+    PaginatedBookingSummaryList:
+      type: object
+      required:
+      - results
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingSummary'
+        next:
+          type: string
+          nullable: true
+          format: uri
+        previous:
+          type: string
+          nullable: true
+          format: uri
     PaginatedCabinConfigList:
       type: object
       required:
@@ -4241,6 +4322,34 @@ components:
       - date
       - destination
       - origin
+    Status02aEnum:
+      enum:
+      - DRAFT
+      - HELD
+      - PENDING_TICKETING
+      - TICKETED
+      - CONFIRMED
+      - CHANGE_PENDING
+      - DISRUPTED
+      - REBOOKED
+      - CANCELLED
+      - REFUND_PENDING
+      - REFUNDED
+      - EXPIRED
+      type: string
+      description: |-
+        * `DRAFT` - Draft
+        * `HELD` - Held
+        * `PENDING_TICKETING` - Pending ticketing
+        * `TICKETED` - Ticketed
+        * `CONFIRMED` - Confirmed
+        * `CHANGE_PENDING` - Change pending
+        * `DISRUPTED` - Disrupted
+        * `REBOOKED` - Rebooked
+        * `CANCELLED` - Cancelled
+        * `REFUND_PENDING` - Refund pending
+        * `REFUNDED` - Refunded
+        * `EXPIRED` - Expired
     ThreeDsStatusEnum:
       enum:
       - NOT_REQUIRED
@@ -4320,6 +4429,22 @@ components:
           type: string
           format: date-time
           readOnly: true
+        arrival_local:
+          type: string
+          format: date-time
+          readOnly: true
+        duration_minutes:
+          type: integer
+          readOnly: true
+        cabin:
+          type: string
+          readOnly: true
+        rbd:
+          type: string
+          readOnly: true
+        fare_basis:
+          type: string
+          readOnly: true
         flown_at:
           type:
           - string
@@ -4327,12 +4452,17 @@ components:
           format: date-time
           readOnly: true
       required:
+      - arrival_local
+      - cabin
       - coupon_number
       - departure_local
       - designator
       - destination
+      - duration_minutes
+      - fare_basis
       - flown_at
       - origin
+      - rbd
       - status
     TicketCouponStatusEnum:
       enum:

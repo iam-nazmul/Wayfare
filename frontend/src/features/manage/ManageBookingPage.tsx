@@ -149,7 +149,15 @@ export default function ManageBookingPage() {
 
       {(tickets.data?.length ?? 0) > 0 && (
         <Card>
-          <h2 className="mb-3 text-sm font-medium">E-tickets</h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-medium">E-tickets</h2>
+            <Link
+              to={`/manage/${data.pnr}/ticket`}
+              className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
+            >
+              View and download
+            </Link>
+          </div>
           <DataTable
             caption="E-tickets and coupon status"
             columns={['ticket', 'passenger', 'status', 'total', 'coupons']}
