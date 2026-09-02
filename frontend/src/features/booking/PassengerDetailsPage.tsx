@@ -79,7 +79,7 @@ export default function PassengerDetailsPage() {
             pnr: booking.pnr,
             pax_count: passengers.length,
           });
-          navigate(`/booking/${booking.pnr}`, {
+          navigate(`/booking/${booking.pnr}/pay`, {
             state: { booking, lastName: passengers[0]?.last_name },
           });
         },
@@ -220,7 +220,7 @@ export default function PassengerDetailsPage() {
 
         <div className="flex items-center gap-4">
           <Button type="submit" disabled={createBooking.isPending || expiry.expired}>
-            {createBooking.isPending ? 'Holding your seats…' : 'Hold seats and get a PNR'}
+            {createBooking.isPending ? 'Holding your seats…' : 'Continue to payment'}
           </Button>
           <Link to="/" className="text-sm text-brand-600 underline">
             Change flight

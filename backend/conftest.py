@@ -28,6 +28,24 @@ def clear_cache():
 
 
 @pytest.fixture
+def celery_eager(monkeypatch):
+    """Run queued work inline.
+
+    Two things stop a test from seeing a background task: Celery hands it to a broker, and
+    ``transaction.on_commit`` never fires inside the atomic block pytest-django wraps each test
+    in. This closes both so a test can assert on what the task did.
+    """
+    from config.celery import app
+
+    monkeypatch.setattr(app.conf, "task_always_eager", True)
+    monkeypatch.setattr(app.conf, "task_eager_propagates", True)
+    monkeypatch.setattr(
+        "django.db.transaction.on_commit", lambda func, using=None, robust=False: func()
+    )
+    return app
+
+
+@pytest.fixture
 def countries(db):
     return {
         code: Country.objects.create(iso2=code, iso3=iso3, name=name)

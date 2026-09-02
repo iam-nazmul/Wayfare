@@ -32,6 +32,8 @@ INSTALLED_APPS = [
     "apps.inventory",
     "apps.pricing",
     "apps.booking",
+    "apps.payments",
+    "apps.ticketing",
     "apps.ops",
     "apps.analytics",
 ]
@@ -123,9 +125,12 @@ EVENT_STREAM_MAXLEN = 1_000_000
 
 # --- DRF ---------------------------------------------------------------------
 REST_FRAMEWORK = {
+    # Bearer only. SessionAuthentication would authenticate any browser carrying a Django
+    # session cookie from /admin, and then enforce CSRF on it — so a staff member with the
+    # admin open got "CSRF Failed" on public endpoints like POST /bookings. The SPA cannot
+    # answer that check either: CSRF_COOKIE_HTTPONLY hides the token from JS in production.
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
-        "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_PAGINATION_CLASS": "apps.common.pagination.WayfareCursorPagination",
@@ -141,6 +146,8 @@ REST_FRAMEWORK = {
         "search": "30/min",
         "search_authenticated": "120/min",
         "booking_create": "10/hour",
+        # Higher than booking_create: a declined card is retried on the same booking.
+        "payment": "30/hour",
         "login": "10/15min",
         "guest_retrieve": "5/15min",
         "collect": "600/min",

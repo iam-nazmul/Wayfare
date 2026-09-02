@@ -181,6 +181,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bookings/{pnr}/payment-intents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Open a provider intent for a booking's balance.
+         *
+         *     The response carries a ``client_secret``: the SPA sends the card straight to the provider
+         *     with it, so no card data ever reaches Wayfare.
+         */
+        post: operations["bookings_payment_intents_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{pnr}/payment-intents/{intent_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Poll one intent. The booking itself is the source of truth for whether it is ticketed. */
+        get: operations["bookings_payment_intents_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{pnr}/payment-intents/{intent_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Sandbox only — stands in for the provider's browser SDK. Confirms an intent with a test card and emits the same signed webhook a real provider would. */
+        post: operations["bookings_payment_intents_confirm_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{pnr}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["bookings_payments_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{pnr}/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description E-tickets and coupon status for one booking.
+         *
+         *     Returns an empty list rather than a 404 for a booking with no tickets yet — the client
+         *     polls this while `issue_tickets` runs.
+         */
+        get: operations["bookings_tickets_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collect": {
         parameters: {
             query?: never;
@@ -550,6 +644,23 @@ export interface paths {
         get: operations["search_flights_offers_list"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/payments/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Provider callback. Signature-verified, unauthenticated, replay-safe. */
+        post: operations["webhooks_payments_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1046,6 +1157,51 @@ export interface components {
             phone?: string;
             locale?: string;
         };
+        Payment: {
+            /** Format: uuid */
+            readonly payment_id: string;
+            readonly method: string;
+            readonly provider: string;
+            readonly amount: string;
+            readonly status: components["schemas"]["PaymentStatusEnum"];
+            readonly card_brand: string;
+            readonly card_last4: string;
+            /** Format: date-time */
+            readonly captured_at: string | null;
+            readonly failure_code: string;
+            readonly failure_message: string;
+        };
+        PaymentIntent: {
+            /** Format: uuid */
+            readonly intent_id: string;
+            readonly provider: string;
+            readonly provider_intent_id: string;
+            readonly amount: string;
+            readonly status: components["schemas"]["PaymentIntentStatusEnum"];
+            readonly client_secret: string;
+            readonly three_ds_status: components["schemas"]["ThreeDsStatusEnum"];
+            /** Format: date-time */
+            readonly expires_at: string;
+        };
+        /**
+         * @description * `REQUIRES_PAYMENT` - Requires payment method
+         *     * `REQUIRES_ACTION` - Requires customer action (3DS)
+         *     * `PROCESSING` - Processing
+         *     * `SUCCEEDED` - Succeeded
+         *     * `FAILED` - Failed
+         *     * `CANCELLED` - Cancelled
+         * @enum {string}
+         */
+        PaymentIntentStatusEnum: "REQUIRES_PAYMENT" | "REQUIRES_ACTION" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
+        /**
+         * @description * `AUTHORISED` - Authorised
+         *     * `CAPTURED` - Captured
+         *     * `FAILED` - Failed
+         *     * `REFUNDED` - Refunded
+         *     * `PARTIALLY_REFUNDED` - Partially refunded
+         * @enum {string}
+         */
+        PaymentStatusEnum: "AUTHORISED" | "CAPTURED" | "FAILED" | "REFUNDED" | "PARTIALLY_REFUNDED";
         RegisterRequest: {
             /** Format: email */
             email: string;
@@ -1066,6 +1222,15 @@ export interface components {
             origin_airport: string;
             destination_airport: string;
             is_active?: boolean;
+        };
+        /**
+         * @description Stands in for the provider's browser SDK.
+         *
+         *     The card number is used to pick a deterministic sandbox outcome and is never stored, logged
+         *     or echoed — only the brand and last four survive the call (CLAUDE.md invariant 9).
+         */
+        SandboxConfirmRequest: {
+            card_number: string;
         };
         /**
          * @description * `ACTIVE` - Active
@@ -1139,6 +1304,56 @@ export interface components {
             /** Format: date */
             date: string;
         };
+        /**
+         * @description * `NOT_REQUIRED` - Not required
+         *     * `REQUIRED` - Required
+         *     * `AUTHENTICATED` - Authenticated
+         *     * `FAILED` - Failed
+         * @enum {string}
+         */
+        ThreeDsStatusEnum: "NOT_REQUIRED" | "REQUIRED" | "AUTHENTICATED" | "FAILED";
+        Ticket: {
+            readonly ticket_number: string;
+            readonly status: components["schemas"]["TicketStatusEnum"];
+            readonly passenger_name: string;
+            /** Format: date-time */
+            readonly issued_at: string;
+            readonly fare: string;
+            readonly taxes: string;
+            readonly total: string;
+            readonly fare_calculation: string;
+            readonly coupons: components["schemas"]["TicketCoupon"][];
+        };
+        TicketCoupon: {
+            readonly coupon_number: number;
+            readonly status: components["schemas"]["TicketCouponStatusEnum"];
+            readonly designator: string;
+            readonly origin: string;
+            readonly destination: string;
+            /** Format: date-time */
+            readonly departure_local: string;
+            /** Format: date-time */
+            readonly flown_at: string | null;
+        };
+        /**
+         * @description * `OPEN` - Open for use
+         *     * `CHECKED_IN` - Checked in
+         *     * `LIFTED` - Lifted
+         *     * `FLOWN` - Flown
+         *     * `EXCHANGED` - Exchanged
+         *     * `REFUNDED` - Refunded
+         *     * `VOID` - Void
+         * @enum {string}
+         */
+        TicketCouponStatusEnum: "OPEN" | "CHECKED_IN" | "LIFTED" | "FLOWN" | "EXCHANGED" | "REFUNDED" | "VOID";
+        /**
+         * @description * `ISSUED` - Issued
+         *     * `EXCHANGED` - Exchanged
+         *     * `REFUNDED` - Refunded
+         *     * `VOID` - Void
+         * @enum {string}
+         */
+        TicketStatusEnum: "ISSUED" | "EXCHANGED" | "REFUNDED" | "VOID";
         TokenObtainPair: {
             readonly access: string;
             readonly refresh: string;
@@ -1461,6 +1676,131 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Booking"];
+                };
+            };
+        };
+    };
+    bookings_payment_intents_create: {
+        parameters: {
+            query?: {
+                /** @description Required for guest access */
+                last_name?: string;
+            };
+            header?: never;
+            path: {
+                pnr: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentIntent"];
+                };
+            };
+        };
+    };
+    bookings_payment_intents_retrieve: {
+        parameters: {
+            query?: {
+                /** @description Required for guest access */
+                last_name?: string;
+            };
+            header?: never;
+            path: {
+                intent_id: string;
+                pnr: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentIntent"];
+                };
+            };
+        };
+    };
+    bookings_payment_intents_confirm_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                intent_id: string;
+                pnr: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SandboxConfirmRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["SandboxConfirmRequest"];
+                "multipart/form-data": components["schemas"]["SandboxConfirmRequest"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentIntent"];
+                };
+            };
+        };
+    };
+    bookings_payments_list: {
+        parameters: {
+            query?: {
+                /** @description Required for guest access */
+                last_name?: string;
+            };
+            header?: never;
+            path: {
+                pnr: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"][];
+                };
+            };
+        };
+    };
+    bookings_tickets_list: {
+        parameters: {
+            query?: {
+                /** @description Required for guest access */
+                last_name?: string;
+            };
+            header?: never;
+            path: {
+                pnr: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Ticket"][];
                 };
             };
         };
@@ -2501,6 +2841,26 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PaginatedOfferList"];
                 };
+            };
+        };
+    };
+    webhooks_payments_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -395,6 +395,179 @@ paths:
               schema:
                 $ref: '#/components/schemas/Booking'
           description: ''
+  /api/v1/bookings/{pnr}/payment-intents:
+    post:
+      operationId: bookings_payment_intents_create
+      description: |-
+        Open a provider intent for a booking's balance.
+
+        The response carries a ``client_secret``: the SPA sends the card straight to the provider
+        with it, so no card data ever reaches Wayfare.
+      parameters:
+      - in: query
+        name: last_name
+        schema:
+          type: string
+        description: Required for guest access
+      - in: path
+        name: pnr
+        schema:
+          type: string
+        required: true
+      tags:
+      - payments
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntent'
+          description: ''
+  /api/v1/bookings/{pnr}/payment-intents/{intent_id}:
+    get:
+      operationId: bookings_payment_intents_retrieve
+      description: Poll one intent. The booking itself is the source of truth for
+        whether it is ticketed.
+      parameters:
+      - in: path
+        name: intent_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: last_name
+        schema:
+          type: string
+        description: Required for guest access
+      - in: path
+        name: pnr
+        schema:
+          type: string
+        required: true
+      tags:
+      - payments
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntent'
+          description: ''
+  /api/v1/bookings/{pnr}/payment-intents/{intent_id}/confirm:
+    post:
+      operationId: bookings_payment_intents_confirm_create
+      description: Sandbox only — stands in for the provider's browser SDK. Confirms
+        an intent with a test card and emits the same signed webhook a real provider
+        would.
+      parameters:
+      - in: path
+        name: intent_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: pnr
+        schema:
+          type: string
+        required: true
+      tags:
+      - payments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SandboxConfirmRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SandboxConfirmRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SandboxConfirmRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntent'
+          description: ''
+  /api/v1/bookings/{pnr}/payments:
+    get:
+      operationId: bookings_payments_list
+      parameters:
+      - in: query
+        name: last_name
+        schema:
+          type: string
+        description: Required for guest access
+      - in: path
+        name: pnr
+        schema:
+          type: string
+        required: true
+      tags:
+      - payments
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+          description: ''
+  /api/v1/bookings/{pnr}/tickets:
+    get:
+      operationId: bookings_tickets_list
+      description: |-
+        E-tickets and coupon status for one booking.
+
+        Returns an empty list rather than a 404 for a booking with no tickets yet — the client
+        polls this while `issue_tickets` runs.
+      parameters:
+      - in: query
+        name: last_name
+        schema:
+          type: string
+        description: Required for guest access
+      - in: path
+        name: pnr
+        schema:
+          type: string
+        required: true
+      tags:
+      - ticketing
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ticket'
+          description: ''
   /api/v1/collect:
     post:
       operationId: collect_create
@@ -1681,6 +1854,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedOfferList'
           description: ''
+  /api/v1/webhooks/payments/{provider}:
+    post:
+      operationId: webhooks_payments_create
+      description: Provider callback. Signature-verified, unauthenticated, replay-safe.
+      parameters:
+      - in: path
+        name: provider
+        schema:
+          type: string
+        required: true
+      tags:
+      - payments
+      security:
+      - {}
+      responses:
+        '202':
+          description: No response body
 components:
   schemas:
     Aircraft:
@@ -2969,6 +3159,125 @@ components:
           type: string
           minLength: 1
           maxLength: 10
+    Payment:
+      type: object
+      properties:
+        payment_id:
+          type: string
+          format: uuid
+          readOnly: true
+        method:
+          type: string
+          readOnly: true
+        provider:
+          type: string
+          readOnly: true
+        amount:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/PaymentStatusEnum'
+          readOnly: true
+        card_brand:
+          type: string
+          readOnly: true
+        card_last4:
+          type: string
+          readOnly: true
+        captured_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        failure_code:
+          type: string
+          readOnly: true
+        failure_message:
+          type: string
+          readOnly: true
+      required:
+      - amount
+      - captured_at
+      - card_brand
+      - card_last4
+      - failure_code
+      - failure_message
+      - method
+      - payment_id
+      - provider
+      - status
+    PaymentIntent:
+      type: object
+      properties:
+        intent_id:
+          type: string
+          format: uuid
+          readOnly: true
+        provider:
+          type: string
+          readOnly: true
+        provider_intent_id:
+          type: string
+          readOnly: true
+        amount:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/PaymentIntentStatusEnum'
+          readOnly: true
+        client_secret:
+          type: string
+          readOnly: true
+        three_ds_status:
+          allOf:
+          - $ref: '#/components/schemas/ThreeDsStatusEnum'
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - client_secret
+      - expires_at
+      - intent_id
+      - provider
+      - provider_intent_id
+      - status
+      - three_ds_status
+    PaymentIntentStatusEnum:
+      enum:
+      - REQUIRES_PAYMENT
+      - REQUIRES_ACTION
+      - PROCESSING
+      - SUCCEEDED
+      - FAILED
+      - CANCELLED
+      type: string
+      description: |-
+        * `REQUIRES_PAYMENT` - Requires payment method
+        * `REQUIRES_ACTION` - Requires customer action (3DS)
+        * `PROCESSING` - Processing
+        * `SUCCEEDED` - Succeeded
+        * `FAILED` - Failed
+        * `CANCELLED` - Cancelled
+    PaymentStatusEnum:
+      enum:
+      - AUTHORISED
+      - CAPTURED
+      - FAILED
+      - REFUNDED
+      - PARTIALLY_REFUNDED
+      type: string
+      description: |-
+        * `AUTHORISED` - Authorised
+        * `CAPTURED` - Captured
+        * `FAILED` - Failed
+        * `REFUNDED` - Refunded
+        * `PARTIALLY_REFUNDED` - Partially refunded
     RegisterRequest:
       type: object
       properties:
@@ -3029,6 +3338,21 @@ components:
       - airline
       - destination_airport
       - origin_airport
+    SandboxConfirmRequest:
+      type: object
+      description: |-
+        Stands in for the provider's browser SDK.
+
+        The card number is used to pick a deterministic sandbox outcome and is never stored, logged
+        or echoed — only the brand and last four survive the call (CLAUDE.md invariant 9).
+      properties:
+        card_number:
+          type: string
+          writeOnly: true
+          minLength: 1
+          pattern: ^\d{12,19}$
+      required:
+      - card_number
     ScheduleStatusEnum:
       enum:
       - ACTIVE
@@ -3219,6 +3543,129 @@ components:
       - date
       - destination
       - origin
+    ThreeDsStatusEnum:
+      enum:
+      - NOT_REQUIRED
+      - REQUIRED
+      - AUTHENTICATED
+      - FAILED
+      type: string
+      description: |-
+        * `NOT_REQUIRED` - Not required
+        * `REQUIRED` - Required
+        * `AUTHENTICATED` - Authenticated
+        * `FAILED` - Failed
+    Ticket:
+      type: object
+      properties:
+        ticket_number:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/TicketStatusEnum'
+          readOnly: true
+        passenger_name:
+          type: string
+          readOnly: true
+        issued_at:
+          type: string
+          format: date-time
+          readOnly: true
+        fare:
+          type: string
+          readOnly: true
+        taxes:
+          type: string
+          readOnly: true
+        total:
+          type: string
+          readOnly: true
+        fare_calculation:
+          type: string
+          readOnly: true
+        coupons:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicketCoupon'
+          readOnly: true
+      required:
+      - coupons
+      - fare
+      - fare_calculation
+      - issued_at
+      - passenger_name
+      - status
+      - taxes
+      - ticket_number
+      - total
+    TicketCoupon:
+      type: object
+      properties:
+        coupon_number:
+          type: integer
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/TicketCouponStatusEnum'
+          readOnly: true
+        designator:
+          type: string
+          readOnly: true
+        origin:
+          type: string
+          readOnly: true
+        destination:
+          type: string
+          readOnly: true
+        departure_local:
+          type: string
+          format: date-time
+          readOnly: true
+        flown_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+      required:
+      - coupon_number
+      - departure_local
+      - designator
+      - destination
+      - flown_at
+      - origin
+      - status
+    TicketCouponStatusEnum:
+      enum:
+      - OPEN
+      - CHECKED_IN
+      - LIFTED
+      - FLOWN
+      - EXCHANGED
+      - REFUNDED
+      - VOID
+      type: string
+      description: |-
+        * `OPEN` - Open for use
+        * `CHECKED_IN` - Checked in
+        * `LIFTED` - Lifted
+        * `FLOWN` - Flown
+        * `EXCHANGED` - Exchanged
+        * `REFUNDED` - Refunded
+        * `VOID` - Void
+    TicketStatusEnum:
+      enum:
+      - ISSUED
+      - EXCHANGED
+      - REFUNDED
+      - VOID
+      type: string
+      description: |-
+        * `ISSUED` - Issued
+        * `EXCHANGED` - Exchanged
+        * `REFUNDED` - Refunded
+        * `VOID` - Void
     TokenObtainPair:
       type: object
       properties:

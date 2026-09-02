@@ -93,7 +93,7 @@ describe('PassengerDetailsPage', () => {
     // The hint sits inside the label, so it lands in the accessible name too.
     await user.type(screen.getByLabelText(/Date of birth/), '1990-05-14');
     await user.type(screen.getByLabelText('Email'), 'traveller@example.com');
-    await user.click(screen.getByRole('button', { name: /hold seats/i }));
+    await user.click(screen.getByRole('button', { name: /continue to payment/i }));
 
     expect(post).toHaveBeenCalledWith(
       '/bookings',
@@ -115,7 +115,7 @@ describe('PassengerDetailsPage', () => {
       { idempotent: true },
     );
 
-    expect(navigate).toHaveBeenCalledWith('/booking/AB12CD', expect.anything());
+    expect(navigate).toHaveBeenCalledWith('/booking/AB12CD/pay', expect.anything());
   });
 
   it('will not submit against an expired price', () => {
@@ -125,7 +125,7 @@ describe('PassengerDetailsPage', () => {
     });
     renderPage();
 
-    expect(screen.getByRole('button', { name: /hold seats/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /continue to payment/i })).toBeDisabled();
     expect(screen.getByText(/price has expired/i)).toBeInTheDocument();
   });
 });

@@ -179,3 +179,57 @@ export interface Booking {
   segments: BookingSegment[];
   passengers: Passenger[];
 }
+
+export type IntentStatus =
+  | 'REQUIRES_PAYMENT'
+  | 'REQUIRES_ACTION'
+  | 'PROCESSING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'CANCELLED';
+
+export interface PaymentIntent {
+  intent_id: string;
+  provider: string;
+  provider_intent_id: string;
+  amount: Money;
+  status: IntentStatus;
+  client_secret: string;
+  three_ds_status: 'NOT_REQUIRED' | 'REQUIRED' | 'AUTHENTICATED' | 'FAILED';
+  expires_at: string;
+}
+
+export interface Payment {
+  payment_id: string;
+  method: string;
+  provider: string;
+  amount: Money;
+  status: 'AUTHORISED' | 'CAPTURED' | 'FAILED' | 'REFUNDED' | 'PARTIALLY_REFUNDED';
+  card_brand: string;
+  card_last4: string;
+  captured_at: string | null;
+  failure_code: string;
+  failure_message: string;
+}
+
+export interface TicketCoupon {
+  coupon_number: number;
+  status: string;
+  designator: string;
+  origin: string;
+  destination: string;
+  departure_local: string;
+  flown_at: string | null;
+}
+
+export interface Ticket {
+  ticket_number: string;
+  status: string;
+  passenger_name: string;
+  issued_at: string;
+  fare: Money;
+  taxes: Money;
+  total: Money;
+  fare_calculation: string;
+  coupons: TicketCoupon[];
+}
