@@ -1,28 +1,31 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import { Button, Card } from '../../components/ui';
 import type { Offer } from '../../api/types';
-import { type PartyCounts, useBookingWizard } from '../booking/store';
 import { formatDuration, formatLocalTime } from '../../lib/dates';
 import { formatMoney } from '../../lib/money';
-import { track } from '../../lib/analytics';
 
 function stopsLabel(stops: number): string {
   if (stops === 0) return 'Non-stop';
   return stops === 1 ? '1 stop' : `${stops} stops`;
 }
 
-export function FlightCard({ offer, party }: { offer: Offer; party: PartyCounts }) {
+export function FlightCard({
+  offer,
+  selected = false,
+  onSelect,
+}: {
+  offer: Offer;
+  selected?: boolean;
+  onSelect: (offer: Offer) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
-  const navigate = useNavigate();
-  const select = useBookingWizard((wizard) => wizard.select);
   const { itinerary, price_breakdown: price } = offer;
   const first = itinerary.segments[0];
   const last = itinerary.segments[itinerary.segments.length - 1];
 
   return (
-    <Card>
+    <Card className={selected ? 'border-brand-600 ring-1 ring-brand-600' : ''}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-3">
@@ -58,20 +61,13 @@ export function FlightCard({ offer, party }: { offer: Offer; party: PartyCounts 
             <div className="text-2xl font-semibold tabular-nums">{formatMoney(offer.total)}</div>
             <div className="text-xs text-muted">total for all passengers</div>
           </div>
+          {/* Selection is not colour-only: the label changes too. */}
           <Button
-            onClick={() => {
-              track('offer_selected', {
-                offer_id: offer.offer_id,
-                origin: itinerary.origin,
-                destination: itinerary.destination,
-                amount: offer.total.amount,
-                currency: offer.total.currency,
-              });
-              select(offer, party);
-              navigate('/book');
-            }}
+            variant={selected ? 'ghost' : 'primary'}
+            aria-pressed={selected}
+            onClick={() => onSelect(offer)}
           >
-            Select
+            {selected ? 'Selected ✓' : 'Select'}
           </Button>
         </div>
       </div>

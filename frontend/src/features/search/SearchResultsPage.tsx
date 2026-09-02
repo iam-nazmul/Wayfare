@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { isApiError } from '../../api/problem';
-import type { Cabin, SearchRequest, TripType } from '../../api/types';
+import type { Cabin, Offer, SearchRequest, TripType } from '../../api/types';
 import { Alert, Card, Select } from '../../components/ui';
 import { track } from '../../lib/analytics';
+import { isComplete, useBookingWizard } from '../booking/store';
 import { FlightCard } from './FlightCard';
+import { SelectionBar } from './SelectionBar';
 import { useFlightSearch } from './api';
 
 type Sort = 'price' | 'duration' | 'departure';
@@ -40,10 +42,32 @@ function buildRequest(params: URLSearchParams): SearchRequest | null {
 
 export default function SearchResultsPage() {
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const request = useMemo(() => buildRequest(params), [params]);
   const [sort, setSort] = useState<Sort>('price');
 
+  const chosen = useBookingWizard((wizard) => wizard.offers);
+  const choose = useBookingWizard((wizard) => wizard.choose);
+
   const { data, isPending, isError, error } = useFlightSearch(request);
+  const sliceCount = data?.slices.length ?? 0;
+
+  function select(sliceIndex: number, offer: Offer) {
+    if (!request) return;
+
+    track('offer_selected', {
+      offer_id: offer.offer_id,
+      origin: offer.itinerary.origin,
+      destination: offer.itinerary.destination,
+      amount: offer.total.amount,
+      currency: offer.total.currency,
+    });
+    choose(sliceIndex, offer, request.passengers, sliceCount);
+
+    // A one-way journey has nothing left to choose, so it goes straight on. A round trip waits
+    // at the summary bar until every leg has a flight.
+    if (sliceCount === 1) navigate('/book');
+  }
 
   useEffect(() => {
     if (data) {
@@ -134,12 +158,28 @@ export default function SearchResultsPage() {
               </Card>
             ) : (
               offers.map((offer) => (
-                <FlightCard key={offer.offer_id} offer={offer} party={request.passengers} />
+                <FlightCard
+                  key={offer.offer_id}
+                  offer={offer}
+                  selected={chosen[slice.index]?.offer_id === offer.offer_id}
+                  onSelect={(chosenOffer) => select(slice.index, chosenOffer)}
+                />
               ))
             )}
           </section>
         );
       })}
+
+      <SelectionBar
+        slices={data.slices.map((slice) => ({
+          index: slice.index,
+          origin: slice.origin,
+          destination: slice.destination,
+        }))}
+        chosen={chosen}
+        currency={data.currency}
+        onContinue={() => isComplete(chosen) && navigate('/book')}
+      />
     </div>
   );
 }

@@ -2,23 +2,25 @@ from datetime import date, timedelta
 
 from django.core.cache import cache
 from django.db.models import Min
+from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 from rest_framework.generics import ListAPIView
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.common.idempotency import idempotent
+from apps.common.pagination import WayfareCursorPagination
 from apps.pricing.constants import TripType
-from apps.pricing.services.refunds import quote_refund
 
-from .models import Offer, SearchQuery
-from .selectors import booking_for, guest_booking
+from .models import Booking, Offer, SearchQuery
+from .selectors import booking_for, bookings_for, guest_booking
 from .serializers import (
     BookingCreateSerializer,
     BookingSerializer,
+    BookingSummarySerializer,
     CalendarEntrySerializer,
     CancelRequestSerializer,
     CancelResponseSerializer,
@@ -30,7 +32,7 @@ from .serializers import (
     SearchResponseSerializer,
 )
 from .services.booking import ContactDetails, create_booking
-from .services.cancel import cancel_booking, is_voidable
+from .services.cancel import cancel_booking, preview_cancellation
 from .services.change import confirm_change, quote_change
 from .services.offers import load_offer
 from .services.search import SearchParams, run_search
@@ -262,17 +264,19 @@ class BookingCreateView(APIView):
     )
     @idempotent(scope="booking_create")
     def post(self, request):
-        offer = load_offer(request.data.get("offer_id"))
+        requested = request.data.get("offer_ids") or [request.data.get("offer_id")]
+        # Validated before the serializer so passenger ages are judged against the real journey.
+        offers = [load_offer(offer_id) for offer_id in requested if offer_id]
 
         serializer = BookingCreateSerializer(
             data=request.data,
-            context={"request": request, "reference_date": _reference_date(offer)},
+            context={"request": request, "reference_date": _reference_date(offers)},
         )
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
         booking = create_booking(
-            offer,
+            offers,
             data["passengers"],
             ContactDetails(
                 email=data["contact"]["email"], phone=data["contact"].get("phone", "")
@@ -327,14 +331,19 @@ class BookingDetailView(APIView):
         )
 
 
-def _reference_date(offer: Offer) -> date:
+def _reference_date(offers: list[Offer]) -> date:
     """Passenger age is judged at the return date, or the last flown date one-way."""
-    search = offer.search_query
+    if not offers:
+        return timezone.now().date()
+
+    search = offers[0].search_query
     if search.return_date:
         return search.return_date
 
-    arrival = offer.itinerary.get("arrival_utc")
-    return date.fromisoformat(arrival[:10]) if arrival else search.depart_date
+    arrivals = [
+        offer.itinerary.get("arrival_utc") for offer in offers if offer.itinerary.get("arrival_utc")
+    ]
+    return date.fromisoformat(max(arrivals)[:10]) if arrivals else search.depart_date
 
 
 @extend_schema(
@@ -362,11 +371,12 @@ class BookingCancelView(APIView):
         data = serializer.validated_data
 
         if data["quote_only"]:
+            quote, voided = preview_cancellation(booking)
             return Response(
                 {
                     "booking": BookingSerializer(booking).data,
-                    "quote": quote_refund(booking).as_dict(),
-                    "voided": is_voidable(booking),
+                    "quote": quote.as_dict(),
+                    "voided": voided,
                     "refund_id": None,
                     "refund_status": None,
                 }
@@ -448,3 +458,21 @@ def _owned_booking_or_404(request, pnr: str):
     if booking is None:
         raise NotFound("No booking matches those details.")
     return booking
+
+
+@extend_schema(tags=["accounts"], responses={200: BookingSummarySerializer(many=True)})
+class MyBookingsView(ListAPIView):
+    """Every booking made while signed in, newest first.
+
+    Ownership is the selector's job, not this view's: `bookings_for` filters to the caller
+    (CLAUDE.md invariant 8), so there is no way to widen it from here.
+    """
+
+    serializer_class = BookingSummarySerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = WayfareCursorPagination
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Booking.objects.none()
+        return bookings_for(self.request.user).order_by("-created_at")

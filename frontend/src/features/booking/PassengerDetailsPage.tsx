@@ -8,7 +8,7 @@ import { track } from '../../lib/analytics';
 import { countdown, formatDate, formatLocalTime } from '../../lib/dates';
 import { formatMoney } from '../../lib/money';
 import { useCreateBooking } from './api';
-import { partyToTypes, useBookingWizard } from './store';
+import { isComplete, partyToTypes, useBookingWizard } from './store';
 
 const TYPE_LABEL: Record<PassengerType, string> = {
   ADT: 'Adult',
@@ -22,8 +22,10 @@ function blank(type: PassengerType): PassengerInput {
 
 export default function PassengerDetailsPage() {
   const navigate = useNavigate();
-  const { offer, party } = useBookingWizard();
+  const { offers, party } = useBookingWizard();
   const createBooking = useCreateBooking();
+
+  const journey = isComplete(offers) ? offers : null;
 
   const types = useMemo(() => partyToTypes(party), [party]);
   const [passengers, setPassengers] = useState<PassengerInput[]>(() => types.map(blank));
@@ -31,8 +33,11 @@ export default function PassengerDetailsPage() {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    track('pax_details_started', { offer_id: offer?.offer_id, pax_count: types.length });
-  }, [offer?.offer_id, types.length]);
+    track('pax_details_started', {
+      offer_id: journey?.[0]?.offer_id,
+      pax_count: types.length,
+    });
+  }, [journey, types.length]);
 
   // The offer expires in 15 minutes; the traveller needs to see that clock, not discover it
   // when the submit fails.
@@ -41,10 +46,10 @@ export default function PassengerDetailsPage() {
     return () => clearInterval(timer);
   }, []);
 
-  if (!offer) {
+  if (!journey) {
     return (
       <Alert tone="error">
-        Your selected flight is no longer in this session.{' '}
+        Your selected flights are no longer in this session.{' '}
         <Link className="underline" to="/">
           Start a new search
         </Link>
@@ -53,9 +58,16 @@ export default function PassengerDetailsPage() {
     );
   }
 
-  const expiry = countdown(offer.expires_at, now);
-  const first = offer.itinerary.segments[0];
-  const last = offer.itinerary.segments[offer.itinerary.segments.length - 1];
+  // The journey is only bookable while every leg's price still stands, so the clock that
+  // matters is the earliest of them.
+  const soonest = journey.reduce((earliest, entry) =>
+    entry.expires_at < earliest.expires_at ? entry : earliest,
+  );
+  const expiry = countdown(soonest.expires_at, now);
+  const total = {
+    amount: journey.reduce((sum, entry) => sum + Number(entry.total.amount), 0).toFixed(2),
+    currency: journey[0].total.currency,
+  };
   const fieldErrors = isApiError(createBooking.error) ? createBooking.error.fieldErrors() : {};
 
   function update(index: number, patch: Partial<PassengerInput>) {
@@ -68,14 +80,14 @@ export default function PassengerDetailsPage() {
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!offer) return;
+    if (!journey) return;
 
     createBooking.mutate(
-      { offer_id: offer.offer_id, passengers, contact },
+      { offer_ids: journey.map((entry) => entry.offer_id), passengers, contact },
       {
         onSuccess: (booking) => {
           track('pax_details_completed', {
-            offer_id: offer.offer_id,
+            offer_id: journey[0].offer_id,
             pnr: booking.pnr,
             pax_count: passengers.length,
           });
@@ -97,19 +109,34 @@ export default function PassengerDetailsPage() {
       </div>
 
       <Card>
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <div>
-            <div className="font-medium">
-              {offer.itinerary.origin} → {offer.itinerary.destination}
-            </div>
-            <div className="text-sm text-muted">
-              {formatDate(first.departure_local)} · {formatLocalTime(first.departure_local)} –{' '}
-              {formatLocalTime(last.arrival_local)} ·{' '}
-              {offer.itinerary.segments.map((segment) => segment.designator).join(' + ')}
-            </div>
-          </div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <ol className="space-y-2">
+            {journey.map((entry, index) => {
+              const first = entry.itinerary.segments[0];
+              const last = entry.itinerary.segments[entry.itinerary.segments.length - 1];
+
+              return (
+                <li key={entry.offer_id}>
+                  {journey.length > 1 && (
+                    <span className="text-xs uppercase tracking-wide text-muted">
+                      {index === 0 ? 'Outbound' : 'Return'}
+                    </span>
+                  )}
+                  <div className="font-medium">
+                    {entry.itinerary.origin} → {entry.itinerary.destination}
+                  </div>
+                  <div className="text-sm text-muted">
+                    {formatDate(first.departure_local)} ·{' '}
+                    {formatLocalTime(first.departure_local)} –{' '}
+                    {formatLocalTime(last.arrival_local)} ·{' '}
+                    {entry.itinerary.segments.map((segment) => segment.designator).join(' + ')}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
           <div className="text-right">
-            <div className="text-xl font-semibold tabular-nums">{formatMoney(offer.total)}</div>
+            <div className="text-xl font-semibold tabular-nums">{formatMoney(total)}</div>
             <div className="text-xs text-muted">total for all passengers</div>
           </div>
         </div>

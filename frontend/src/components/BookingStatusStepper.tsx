@@ -25,7 +25,7 @@ const TONE: Partial<Record<BookingStatus, 'good' | 'warn' | 'bad' | 'neutral'>> 
   REFUNDED: 'neutral',
 };
 
-export function statusLabel(status: BookingStatus): string {
+function statusLabel(status: BookingStatus): string {
   return status.replace(/_/g, ' ').toLowerCase();
 }
 

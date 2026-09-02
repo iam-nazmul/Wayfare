@@ -142,9 +142,39 @@ class ContactSerializer(serializers.Serializer):
 
 
 class BookingCreateSerializer(serializers.Serializer):
-    offer_id = serializers.UUIDField()
+    """One offer per journey slice — a round trip books both legs into a single PNR.
+
+    ``offer_id`` is the one-slice shorthand; ``offer_ids`` carries a multi-slice journey in
+    travel order. Exactly one of the two must be given.
+    """
+
+    offer_id = serializers.UUIDField(required=False)
+    offer_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, min_length=1, max_length=6
+    )
     passengers = PassengerInputSerializer(many=True, min_length=1, max_length=9)
     contact = ContactSerializer()
+
+    def validate(self, attrs: dict) -> dict:
+        single, many = attrs.get("offer_id"), attrs.get("offer_ids")
+
+        if not single and not many:
+            raise serializers.ValidationError(
+                {"offer_ids": "Give an offer for each slice of the journey."}
+            )
+        if single and many:
+            raise serializers.ValidationError(
+                {"offer_ids": "Send either offer_id or offer_ids, not both."}
+            )
+
+        offers = many or [single]
+        if len(set(offers)) != len(offers):
+            raise serializers.ValidationError(
+                {"offer_ids": "The same offer cannot be used for two slices."}
+            )
+
+        attrs["offer_ids"] = offers
+        return attrs
 
     def validate_passengers(self, passengers: list[dict]) -> list[dict]:
         counts = Counter(entry["type"] for entry in passengers)
@@ -282,3 +312,44 @@ class ChangeQuoteSerializer(serializers.Serializer):
 class ChangeConfirmResponseSerializer(serializers.Serializer):
     booking = BookingSerializer()
     quote = ChangeQuoteSerializer()
+
+
+class BookingSummarySerializer(serializers.ModelSerializer):
+    """The row shape for "my bookings" — enough to recognise a trip, not the whole PNR."""
+
+    origin = serializers.SerializerMethodField()
+    destination = serializers.SerializerMethodField()
+    departure_local = serializers.SerializerMethodField()
+    passenger_count = serializers.SerializerMethodField()
+    total = MoneyField("total_amount", read_only=True, source="*")
+
+    class Meta:
+        model = Booking
+        fields = [
+            "pnr", "status", "trip_type", "origin", "destination", "departure_local",
+            "passenger_count", "total", "booked_at", "hold_expires_at",
+        ]
+        read_only_fields = fields
+
+    def _segments(self, booking: Booking) -> list:
+        # Cancelled segments stay on the booking after an exchange; the live journey is what
+        # the traveller recognises.
+        live = [
+            segment for segment in booking.segments.all() if segment.status != "CANCELLED"
+        ]
+        return live or list(booking.segments.all())
+
+    def get_origin(self, booking: Booking) -> str:
+        segments = self._segments(booking)
+        return segments[0].flight.origin_airport_id if segments else ""
+
+    def get_destination(self, booking: Booking) -> str:
+        segments = self._segments(booking)
+        return segments[-1].flight.destination_airport_id if segments else ""
+
+    def get_departure_local(self, booking: Booking):
+        segments = self._segments(booking)
+        return segments[0].flight.departure_local if segments else None
+
+    def get_passenger_count(self, booking: Booking) -> int:
+        return len(booking.passengers.all())

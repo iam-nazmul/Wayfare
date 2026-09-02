@@ -1,6 +1,13 @@
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
+
+import { useLogout } from '../features/auth/api';
+import { isStaff, useAuth } from '../features/auth/store';
 
 export function Layout() {
+  const user = useAuth((state) => state.user);
+  const logout = useLogout();
+  const navigate = useNavigate();
+
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="border-b border-line">
@@ -8,13 +15,40 @@ export function Layout() {
           <Link to="/" className="text-lg font-semibold tracking-tight text-brand-700">
             Wayfare
           </Link>
-          <nav aria-label="Main" className="flex gap-6 text-sm text-muted">
+          <nav aria-label="Main" className="flex items-center gap-6 text-sm text-muted">
             <Link to="/manage" className="hover:text-ink">
               Manage booking
             </Link>
-            <Link to="/checkin" className="hover:text-ink">
-              Check in
-            </Link>
+            {user && (
+              <Link to="/account/bookings" className="hover:text-ink">
+                My bookings
+              </Link>
+            )}
+            {isStaff(user) && (
+              <Link to="/ops/reports" className="hover:text-ink">
+                Ops
+              </Link>
+            )}
+            {user ? (
+              <button
+                type="button"
+                className="hover:text-ink"
+                onClick={() =>
+                  logout.mutate(undefined, { onSettled: () => navigate('/', { replace: true }) })
+                }
+              >
+                Sign out
+              </button>
+            ) : (
+              <>
+                <Link to="/login" className="hover:text-ink">
+                  Sign in
+                </Link>
+                <Link to="/register" className="hover:text-ink">
+                  Sign up
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </header>

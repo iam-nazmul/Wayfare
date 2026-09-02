@@ -1,6 +1,7 @@
 /** Query-key factories. Never inline a key string — invalidation depends on these shapes. */
 export const keys = {
   me: () => ['me'] as const,
+  myBookings: () => ['me', 'bookings'] as const,
   travellers: () => ['travellers'] as const,
   airports: (query: string) => ['airports', query] as const,
   search: (params: unknown) => ['search', params] as const,

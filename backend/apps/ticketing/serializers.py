@@ -16,12 +16,23 @@ class TicketCouponSerializer(serializers.ModelSerializer):
     departure_local = serializers.DateTimeField(
         source="segment.flight.departure_local", read_only=True
     )
+    #: A coupon without an arrival time is not a document anyone can travel on.
+    arrival_local = serializers.DateTimeField(
+        source="segment.flight.arrival_local", read_only=True
+    )
+    duration_minutes = serializers.IntegerField(
+        source="segment.flight.duration_minutes", read_only=True
+    )
+    cabin = serializers.CharField(source="segment.cabin", read_only=True)
+    rbd = serializers.CharField(source="segment.rbd", read_only=True)
+    fare_basis = serializers.CharField(source="segment.fare_basis", read_only=True)
 
     class Meta:
         model = TicketCoupon
         fields = [
             "coupon_number", "status", "designator", "origin", "destination",
-            "departure_local", "flown_at",
+            "departure_local", "arrival_local", "duration_minutes",
+            "cabin", "rbd", "fare_basis", "flown_at",
         ]
         read_only_fields = fields
 

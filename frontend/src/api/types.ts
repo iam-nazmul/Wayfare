@@ -155,7 +155,8 @@ export interface BookingSegment {
 }
 
 export interface BookingRequest {
-  offer_id: string;
+  /** One offer per journey slice, in travel order. A round trip sends two. */
+  offer_ids: string[];
   passengers: PassengerInput[];
   contact: { email: string; phone?: string };
 }
@@ -219,6 +220,11 @@ export interface TicketCoupon {
   origin: string;
   destination: string;
   departure_local: string;
+  arrival_local: string;
+  duration_minutes: number;
+  cabin: Cabin;
+  rbd: string;
+  fare_basis: string;
   flown_at: string | null;
 }
 
@@ -329,4 +335,23 @@ export interface User {
 export interface TokenPair {
   access: string;
   refresh: string;
+}
+
+export interface BookingSummary {
+  pnr: string;
+  status: BookingStatus;
+  trip_type: TripType;
+  origin: string;
+  destination: string;
+  departure_local: string | null;
+  passenger_count: number;
+  total: Money;
+  booked_at: string | null;
+  hold_expires_at: string | null;
+}
+
+export interface Paginated<T> {
+  results: T[];
+  next: string | null;
+  previous: string | null;
 }
