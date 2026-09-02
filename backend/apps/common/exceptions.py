@@ -52,6 +52,12 @@ class IdempotencyKeyReuse(DomainError):
     title = "Idempotency key reused with a different request body"
 
 
+class IdempotencyInProgress(DomainError):
+    status_code = status.HTTP_409_CONFLICT
+    code = "idempotency_in_progress"
+    title = "A request with this idempotency key is still running"
+
+
 class PaymentFailed(DomainError):
     status_code = status.HTTP_402_PAYMENT_REQUIRED
     code = "payment_failed"
