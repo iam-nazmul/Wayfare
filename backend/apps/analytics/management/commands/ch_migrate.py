@@ -57,11 +57,41 @@ class Command(BaseCommand):
 
 
 def _statements(sql: str) -> list[str]:
-    statements = []
-    for chunk in sql.split(";"):
-        cleaned = "\n".join(
-            line for line in chunk.splitlines() if not line.strip().startswith("--")
-        ).strip()
-        if cleaned:
-            statements.append(cleaned)
-    return statements
+    """Split on statement terminators, ignoring ``;`` inside comments and quoted literals."""
+    statements: list[str] = []
+    current: list[str] = []
+    quote: str | None = None
+    index = 0
+
+    while index < len(sql):
+        char = sql[index]
+
+        if quote is not None:
+            current.append(char)
+            if char == "\\" and index + 1 < len(sql):
+                current.append(sql[index + 1])
+                index += 2
+                continue
+            if char == quote:
+                quote = None
+            index += 1
+        elif char in "'\"`":
+            quote = char
+            current.append(char)
+            index += 1
+        elif sql.startswith("--", index):
+            newline = sql.find("\n", index)
+            index = len(sql) if newline == -1 else newline
+        elif sql.startswith("/*", index):
+            close = sql.find("*/", index + 2)
+            index = len(sql) if close == -1 else close + 2
+        elif char == ";":
+            statements.append("".join(current))
+            current = []
+            index += 1
+        else:
+            current.append(char)
+            index += 1
+
+    statements.append("".join(current))
+    return [statement.strip() for statement in statements if statement.strip()]

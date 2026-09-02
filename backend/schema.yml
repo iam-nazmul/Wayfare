@@ -331,6 +331,70 @@ paths:
               schema:
                 $ref: '#/components/schemas/User'
           description: ''
+  /api/v1/bookings:
+    post:
+      operationId: bookings_create
+      description: Re-validates the offer's signature and expiry, re-reads availability
+        under lock, holds the seats and mints a PNR. Requires an Idempotency-Key header.
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BookingCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BookingCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+          description: ''
+  /api/v1/bookings/{pnr}:
+    get:
+      operationId: bookings_retrieve
+      description: |-
+        Retrieve a booking by PNR.
+
+        Owner or staff get it from the ownership-filtered selector; everyone else must supply the
+        lead surname, and gets a 404 — never a 403 — when it does not match, so the endpoint cannot
+        be used to confirm that a PNR exists.
+      parameters:
+      - in: query
+        name: last_name
+        schema:
+          type: string
+        description: Required for guest retrieval; ignored when authenticated as the
+          owner.
+      - in: path
+        name: pnr
+        schema:
+          type: string
+        required: true
+      tags:
+      - bookings
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+          description: ''
   /api/v1/collect:
     post:
       operationId: collect_create
@@ -1711,6 +1775,92 @@ components:
     BlankEnum:
       enum:
       - ''
+    Booking:
+      type: object
+      properties:
+        pnr:
+          type: string
+          readOnly: true
+        public_id:
+          type: string
+          format: uuid
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/BookingStatusEnum'
+          readOnly: true
+        trip_type:
+          allOf:
+          - $ref: '#/components/schemas/TripTypeEnum'
+          readOnly: true
+        currency:
+          type: string
+          readOnly: true
+        base:
+          type: string
+          readOnly: true
+        taxes:
+          type: string
+          readOnly: true
+        fees:
+          type: string
+          readOnly: true
+        discount:
+          type: string
+          readOnly: true
+        total:
+          type: string
+          readOnly: true
+        balance_due:
+          type: string
+          readOnly: true
+        contact_email:
+          type: string
+          format: email
+          readOnly: true
+        contact_phone:
+          type: string
+          readOnly: true
+        hold_expires_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        booked_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingSegment'
+          readOnly: true
+        passengers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Passenger'
+          readOnly: true
+      required:
+      - balance_due
+      - base
+      - booked_at
+      - contact_email
+      - contact_phone
+      - currency
+      - discount
+      - fees
+      - hold_expires_at
+      - passengers
+      - pnr
+      - public_id
+      - segments
+      - status
+      - taxes
+      - total
+      - trip_type
     BookingClass:
       type: object
       properties:
@@ -1745,6 +1895,132 @@ components:
       - rbd
       - seats_available
       - sold
+    BookingCreateRequest:
+      type: object
+      properties:
+        offer_id:
+          type: string
+          format: uuid
+        passengers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PassengerInputRequest'
+        contact:
+          $ref: '#/components/schemas/ContactRequest'
+      required:
+      - contact
+      - offer_id
+      - passengers
+    BookingSegment:
+      type: object
+      properties:
+        sequence:
+          type: integer
+          readOnly: true
+        flight_public_id:
+          type: string
+          format: uuid
+          readOnly: true
+        designator:
+          type: string
+          readOnly: true
+        origin:
+          type: string
+          readOnly: true
+        destination:
+          type: string
+          readOnly: true
+        departure_utc:
+          type: string
+          format: date-time
+          readOnly: true
+        arrival_utc:
+          type: string
+          format: date-time
+          readOnly: true
+        departure_local:
+          type: string
+          format: date-time
+          readOnly: true
+        arrival_local:
+          type: string
+          format: date-time
+          readOnly: true
+        duration_minutes:
+          type: integer
+          readOnly: true
+        cabin:
+          allOf:
+          - $ref: '#/components/schemas/CabinEnum'
+          readOnly: true
+        rbd:
+          type: string
+          readOnly: true
+        fare_basis:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/BookingSegmentStatusEnum'
+          readOnly: true
+        baggage_allowance:
+          readOnly: true
+      required:
+      - arrival_local
+      - arrival_utc
+      - baggage_allowance
+      - cabin
+      - departure_local
+      - departure_utc
+      - designator
+      - destination
+      - duration_minutes
+      - fare_basis
+      - flight_public_id
+      - origin
+      - rbd
+      - sequence
+      - status
+    BookingSegmentStatusEnum:
+      enum:
+      - HELD
+      - CONFIRMED
+      - FLOWN
+      - CANCELLED
+      type: string
+      description: |-
+        * `HELD` - Held
+        * `CONFIRMED` - Confirmed
+        * `FLOWN` - Flown
+        * `CANCELLED` - Cancelled
+    BookingStatusEnum:
+      enum:
+      - DRAFT
+      - HELD
+      - PENDING_TICKETING
+      - TICKETED
+      - CONFIRMED
+      - CHANGE_PENDING
+      - DISRUPTED
+      - REBOOKED
+      - CANCELLED
+      - REFUND_PENDING
+      - REFUNDED
+      - EXPIRED
+      type: string
+      description: |-
+        * `DRAFT` - Draft
+        * `HELD` - Held
+        * `PENDING_TICKETING` - Pending ticketing
+        * `TICKETED` - Ticketed
+        * `CONFIRMED` - Confirmed
+        * `CHANGE_PENDING` - Change pending
+        * `DISRUPTED` - Disrupted
+        * `REBOOKED` - Rebooked
+        * `CANCELLED` - Cancelled
+        * `REFUND_PENDING` - Refund pending
+        * `REFUNDED` - Refunded
+        * `EXPIRED` - Expired
     CabinConfig:
       type: object
       properties:
@@ -1848,6 +2124,18 @@ components:
       required:
       - event_name
       - session_id
+    ContactRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        phone:
+          type: string
+          maxLength: 32
+      required:
+      - email
     Currency:
       type: object
       properties:
@@ -2398,6 +2686,104 @@ components:
           type: string
           nullable: true
           format: uri
+    Passenger:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        type:
+          allOf:
+          - $ref: '#/components/schemas/TypeEnum'
+          readOnly: true
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+        dob:
+          type: string
+          format: date
+          readOnly: true
+        gender:
+          allOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          readOnly: true
+        nationality:
+          type: string
+          readOnly: true
+        doc_type:
+          allOf:
+          - $ref: '#/components/schemas/DocTypeEnum'
+          readOnly: true
+        doc_number:
+          type: string
+          readOnly: true
+        doc_expiry:
+          type:
+          - string
+          - 'null'
+          format: date
+          readOnly: true
+        frequent_flyer_number:
+          type: string
+          readOnly: true
+      required:
+      - dob
+      - doc_expiry
+      - doc_number
+      - doc_type
+      - first_name
+      - frequent_flyer_number
+      - gender
+      - id
+      - last_name
+      - nationality
+      - type
+    PassengerInputRequest:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/TypeEnum'
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        dob:
+          type: string
+          format: date
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        nationality:
+          type: string
+          maxLength: 2
+        doc_type:
+          oneOf:
+          - $ref: '#/components/schemas/DocTypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        doc_number:
+          type: string
+          maxLength: 64
+        doc_expiry:
+          type:
+          - string
+          - 'null'
+          format: date
+        frequent_flyer_number:
+          type: string
+          maxLength: 32
+      required:
+      - dob
+      - first_name
+      - last_name
+      - type
     PassengersRequest:
       type: object
       properties:
@@ -2981,6 +3367,16 @@ components:
         * `ONE_WAY` - One way
         * `ROUND_TRIP` - Round trip
         * `MULTI_CITY` - Multi city
+    TypeEnum:
+      enum:
+      - ADT
+      - CHD
+      - INF
+      type: string
+      description: |-
+        * `ADT` - Adult
+        * `CHD` - Child
+        * `INF` - Infant
     User:
       type: object
       properties:

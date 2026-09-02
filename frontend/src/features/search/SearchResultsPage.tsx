@@ -133,7 +133,9 @@ export default function SearchResultsPage() {
                 </p>
               </Card>
             ) : (
-              offers.map((offer) => <FlightCard key={offer.offer_id} offer={offer} />)
+              offers.map((offer) => (
+                <FlightCard key={offer.offer_id} offer={offer} party={request.passengers} />
+              ))
             )}
           </section>
         );

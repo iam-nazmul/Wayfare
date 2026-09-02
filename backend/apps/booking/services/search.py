@@ -11,10 +11,15 @@ from django.utils import timezone
 
 from apps.analytics.events import push
 from apps.inventory.constants import Cabin
-from apps.inventory.services.availability import cheapest_open_class
+from apps.inventory.services.availability import Availability, open_classes
 from apps.inventory.services.cache import remember_search_key
 from apps.pricing.constants import TripType
-from apps.pricing.services.quote import NoFareFound, PassengerCount, quote_itinerary
+from apps.pricing.services.quote import (
+    NoFareFound,
+    PassengerCount,
+    find_fare,
+    quote_itinerary,
+)
 
 from ..models import Offer, SearchQuery
 from .itineraries import Itinerary, build_itineraries
@@ -120,7 +125,7 @@ def run_search(params: SearchParams, *, session_id: str = "", user=None) -> tupl
 
 
 def _price(itinerary: Itinerary, params: SearchParams, search_query: SearchQuery) -> Offer | None:
-    """Find the cheapest open class on every leg, then price the whole journey.
+    """Find the cheapest sellable class on every leg, then price the whole journey.
 
     A leg with no open class, or a journey with no qualifying fare, yields no offer — an
     itinerary that cannot be ticketed must never reach the customer.
@@ -130,7 +135,7 @@ def _price(itinerary: Itinerary, params: SearchParams, search_query: SearchQuery
     seats_remaining = 999
 
     for flight in itinerary.flights:
-        availability = cheapest_open_class(flight.id, params.cabin, seats_needed)
+        availability = _sellable_class(flight, params, seats_needed)
         if availability is None:
             return None
         legs.append((flight, params.cabin, availability.rbd))
@@ -155,6 +160,29 @@ def _price(itinerary: Itinerary, params: SearchParams, search_query: SearchQuery
         fare_family_id=breakdown.segments[0].fare_family_id if breakdown.segments else None,
         seats_remaining=min(seats_remaining, 9),
     )
+
+
+def _sellable_class(flight, params: SearchParams, seats_needed: int) -> Availability | None:
+    """Cheapest open class on a leg whose fare the journey actually qualifies for.
+
+    Seat availability and fare rules are separate gates. The cheapest bucket is often held back
+    by an advance-purchase or stay rule, and an airline then sells the next one up rather than
+    dropping the flight — so walk the ladder instead of giving up on the first miss.
+    """
+    departure = flight.departure_utc.date()
+
+    for availability in open_classes(flight.id, params.cabin, seats_needed):
+        fare = find_fare(
+            flight,
+            params.cabin,
+            availability.rbd,
+            departure=departure,
+            return_date=params.return_date,
+        )
+        if fare is not None:
+            return availability
+
+    return None
 
 
 def _itinerary_payload(itinerary: Itinerary, legs: list) -> dict:

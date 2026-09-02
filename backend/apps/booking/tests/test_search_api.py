@@ -123,6 +123,43 @@ def test_sold_out_flight_produces_no_offers(client, priced_flight):
     assert response.data["slices"][0]["offers"] == []
 
 
+def test_advance_purchase_gated_bucket_falls_back_to_the_next_class(
+    client, make_flight, make_fare
+):
+    """The cheapest bucket is unqualified this close in, so the flight sells one class up."""
+    from apps.inventory.models import BookingClass, CabinConfig
+
+    flight = make_flight(days_ahead=1, capacity=10, rbd="Y")
+    BookingClass.objects.create(
+        flight=flight,
+        cabin_config=CabinConfig.objects.get(flight=flight),
+        rbd="L",
+        authorised=10,
+        sort_order=6,
+    )
+    make_fare(rbd="Y", amount="200.00")
+    make_fare(rbd="L", amount="80.00", advance_purchase_days=3)
+
+    response = client.post(reverse("v1:search-flights"), payload(flight), format="json")
+    assert response.status_code == 200
+
+    offers = response.data["slices"][0]["offers"]
+    assert len(offers) == 1
+    assert offers[0]["itinerary"]["segments"][0]["rbd"] == "Y"
+    assert offers[0]["total"] == {"amount": "200.00", "currency": "USD"}
+
+
+def test_no_qualifying_fare_on_any_open_class_produces_no_offers(
+    client, make_flight, make_fare
+):
+    flight = make_flight(days_ahead=2, capacity=10, rbd="L", flight_number="102")
+    make_fare(rbd="L", amount="80.00", advance_purchase_days=3)
+
+    response = client.post(reverse("v1:search-flights"), payload(flight), format="json")
+    assert response.status_code == 200
+    assert response.data["slices"][0]["offers"] == []
+
+
 def test_airport_typeahead_is_public(client, airports):
     response = client.get(reverse("v1:airport-list"), {"q": "DAC"})
     assert response.status_code == 200

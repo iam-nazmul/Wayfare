@@ -4,20 +4,26 @@ from django.core.cache import cache
 from django.db.models import Min
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
+from rest_framework.exceptions import NotFound
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.idempotency import idempotent
 from apps.pricing.constants import TripType
 
 from .models import Offer, SearchQuery
+from .selectors import booking_for, guest_booking
 from .serializers import (
+    BookingCreateSerializer,
+    BookingSerializer,
     CalendarEntrySerializer,
     OfferSerializer,
     SearchRequestSerializer,
     SearchResponseSerializer,
 )
+from .services.booking import ContactDetails, create_booking
 from .services.offers import load_offer
 from .services.search import SearchParams, run_search
 
@@ -225,3 +231,99 @@ class FareCalendarView(APIView):
         data = CalendarEntrySerializer(payload, many=True).data
         cache.set(key, data, CALENDAR_CACHE_SECONDS)
         return Response(data)
+
+
+@extend_schema(tags=["bookings"])
+class BookingCreateView(APIView):
+    """Turn an offer into a held PNR.
+
+    Public: a traveller books before signing in more often than after. An authenticated call
+    attaches the booking to the account, an anonymous one is retrievable with PNR + surname.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_scope = "booking_create"
+
+    @extend_schema(
+        request=BookingCreateSerializer,
+        responses={201: BookingSerializer},
+        description=(
+            "Re-validates the offer's signature and expiry, re-reads availability under lock, "
+            "holds the seats and mints a PNR. Requires an Idempotency-Key header."
+        ),
+    )
+    @idempotent(scope="booking_create")
+    def post(self, request):
+        offer = load_offer(request.data.get("offer_id"))
+
+        serializer = BookingCreateSerializer(
+            data=request.data,
+            context={"request": request, "reference_date": _reference_date(offer)},
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        booking = create_booking(
+            offer,
+            data["passengers"],
+            ContactDetails(
+                email=data["contact"]["email"], phone=data["contact"].get("phone", "")
+            ),
+            user=request.user,
+        )
+
+        return Response(
+            BookingSerializer(booking).data,
+            status=status.HTTP_201_CREATED,
+            headers={"ETag": f'"{booking.version}"'},
+        )
+
+
+@extend_schema(
+    tags=["bookings"],
+    parameters=[
+        OpenApiParameter(
+            "last_name",
+            str,
+            description="Required for guest retrieval; ignored when authenticated as the owner.",
+        )
+    ],
+    responses={200: BookingSerializer},
+)
+class BookingDetailView(APIView):
+    """Retrieve a booking by PNR.
+
+    Owner or staff get it from the ownership-filtered selector; everyone else must supply the
+    lead surname, and gets a 404 — never a 403 — when it does not match, so the endpoint cannot
+    be used to confirm that a PNR exists.
+    """
+
+    permission_classes = [AllowAny]
+
+    def get_throttles(self):
+        if not (self.request.user and self.request.user.is_authenticated):
+            self.throttle_scope = "guest_retrieve"
+        return super().get_throttles()
+
+    def get(self, request, pnr):
+        booking = booking_for(request.user, pnr)
+
+        if booking is None:
+            booking = guest_booking(pnr, request.query_params.get("last_name", ""))
+
+        if booking is None:
+            raise NotFound("No booking matches those details.")
+
+        return Response(
+            BookingSerializer(booking).data, headers={"ETag": f'"{booking.version}"'}
+        )
+
+
+def _reference_date(offer: Offer) -> date:
+    """Passenger age is judged at the return date, or the last flown date one-way."""
+    search = offer.search_query
+    if search.return_date:
+        return search.return_date
+
+    arrival = offer.itinerary.get("arrival_utc")
+    return date.fromisoformat(arrival[:10]) if arrival else search.depart_date

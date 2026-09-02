@@ -24,8 +24,8 @@ class Availability:
     sort_order: int
 
 
-def cheapest_open_class(flight_id: int, cabin: str, seats: int) -> Availability | None:
-    """Lowest-priced open RBD that can seat the party, respecting the cabin ceiling.
+def open_classes(flight_id: int, cabin: str, seats: int) -> list[Availability]:
+    """Every open RBD that can seat the party, cheapest first, respecting the cabin ceiling.
 
     Read-only and lock-free: results feed search, which must never block booking. The booking
     path re-checks the same numbers under ``select_for_update``.
@@ -36,7 +36,7 @@ def cheapest_open_class(flight_id: int, cabin: str, seats: int) -> Availability 
         ).first()
     )
     if cabin_config is None or cabin_config.seats_available < seats:
-        return None
+        return []
 
     classes = (
         BookingClass.objects.filter(flight_id=flight_id, cabin_config=cabin_config, is_open=True)
@@ -44,11 +44,20 @@ def cheapest_open_class(flight_id: int, cabin: str, seats: int) -> Availability 
         .filter(free__gte=seats)
         .order_by("-sort_order")
     )
-    best = classes.first()
-    if best is None:
-        return None
-    return Availability(rbd=best.rbd, seats_available=best.seats_available,
-                        sort_order=best.sort_order)
+    return [
+        Availability(
+            rbd=booking_class.rbd,
+            seats_available=booking_class.seats_available,
+            sort_order=booking_class.sort_order,
+        )
+        for booking_class in classes
+    ]
+
+
+def cheapest_open_class(flight_id: int, cabin: str, seats: int) -> Availability | None:
+    """See ``open_classes``; returns only the cheapest of them."""
+    classes = open_classes(flight_id, cabin, seats)
+    return classes[0] if classes else None
 
 
 def _lock(requests: list[SeatRequest]) -> list[tuple[SeatRequest, CabinConfig, BookingClass]]:

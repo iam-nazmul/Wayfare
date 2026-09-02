@@ -10,6 +10,7 @@ from apps.inventory.services.availability import (
     cheapest_open_class,
     confirm,
     hold,
+    open_classes,
     release,
     unsell,
 )
@@ -29,6 +30,18 @@ def test_cheapest_open_class_respects_the_cabin_ceiling(make_flight):
     flight = make_flight(capacity=2, rbd="Q", authorised=50)
     assert cheapest_open_class(flight.id, "ECONOMY", 2) is not None
     assert cheapest_open_class(flight.id, "ECONOMY", 3) is None
+
+
+def test_open_classes_are_ordered_cheapest_first(make_flight):
+    flight = make_flight(capacity=10, rbd="Y")
+    BookingClass.objects.create(
+        flight=flight,
+        cabin_config=CabinConfig.objects.get(flight=flight),
+        rbd="L",
+        authorised=10,
+        sort_order=6,
+    )
+    assert [entry.rbd for entry in open_classes(flight.id, "ECONOMY", 1)] == ["L", "Y"]
 
 
 def test_cheapest_open_class_ignores_closed_buckets(make_flight):

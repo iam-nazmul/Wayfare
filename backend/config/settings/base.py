@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "apps.inventory",
     "apps.pricing",
     "apps.booking",
+    "apps.ops",
     "apps.analytics",
 ]
 
@@ -135,7 +136,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.common.exceptions.problem_detail_handler",
-    "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
+    "DEFAULT_THROTTLE_CLASSES": ["apps.common.throttling.ScopedWindowRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {
         "search": "30/min",
         "search_authenticated": "120/min",

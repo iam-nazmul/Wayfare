@@ -11,4 +11,6 @@ urlpatterns = [
     ),
     path("search/calendar", views.FareCalendarView.as_view(), name="search-calendar"),
     path("offers/<uuid:offer_id>", views.OfferDetailView.as_view(), name="offer-detail"),
+    path("bookings", views.BookingCreateView.as_view(), name="booking-create"),
+    path("bookings/<str:pnr>", views.BookingDetailView.as_view(), name="booking-detail"),
 ]

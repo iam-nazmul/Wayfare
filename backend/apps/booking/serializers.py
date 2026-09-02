@@ -1,10 +1,16 @@
+from collections import Counter
+from datetime import date
+
 from django.utils import timezone
 from rest_framework import serializers
 
+from apps.accounts.constants import DocumentType, Gender
+from apps.common.fields import MoneyField
 from apps.inventory.constants import Cabin
-from apps.pricing.constants import TripType
+from apps.pricing.constants import PassengerType, TripType
 
-from .models import Offer, SearchQuery
+from .models import Booking, BookingSegment, Offer, Passenger, SearchQuery
+from .services.pax import pax_type_for
 
 
 class SliceSerializer(serializers.Serializer):
@@ -111,3 +117,120 @@ class SearchQuerySerializer(serializers.ModelSerializer):
 class CalendarEntrySerializer(serializers.Serializer):
     date = serializers.DateField()
     cheapest = serializers.DictField(child=serializers.CharField(), allow_null=True)
+
+
+class PassengerInputSerializer(serializers.Serializer):
+    type = serializers.ChoiceField(choices=PassengerType.choices)
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100)
+    dob = serializers.DateField()
+    gender = serializers.ChoiceField(choices=Gender.choices, required=False, allow_blank=True)
+    nationality = serializers.CharField(max_length=2, required=False, allow_blank=True)
+    doc_type = serializers.ChoiceField(
+        choices=DocumentType.choices, required=False, allow_blank=True
+    )
+    doc_number = serializers.CharField(max_length=64, required=False, allow_blank=True)
+    doc_expiry = serializers.DateField(required=False, allow_null=True)
+    frequent_flyer_number = serializers.CharField(
+        max_length=32, required=False, allow_blank=True
+    )
+
+
+class ContactSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    phone = serializers.CharField(max_length=32, required=False, allow_blank=True)
+
+
+class BookingCreateSerializer(serializers.Serializer):
+    offer_id = serializers.UUIDField()
+    passengers = PassengerInputSerializer(many=True, min_length=1, max_length=9)
+    contact = ContactSerializer()
+
+    def validate_passengers(self, passengers: list[dict]) -> list[dict]:
+        counts = Counter(entry["type"] for entry in passengers)
+
+        if counts[PassengerType.ADULT] == 0:
+            raise serializers.ValidationError("Every booking needs at least one adult.")
+        if counts[PassengerType.INFANT] > counts[PassengerType.ADULT]:
+            raise serializers.ValidationError(
+                "Each infant must travel with its own adult."
+            )
+        if counts[PassengerType.ADULT] + counts[PassengerType.CHILD] > 9:
+            raise serializers.ValidationError(
+                "A single booking may carry at most 9 seated passengers."
+            )
+
+        for index, entry in enumerate(passengers):
+            expected = pax_type_for(entry["dob"], self.reference_date)
+            if expected != entry["type"]:
+                raise serializers.ValidationError(
+                    {
+                        str(index): (
+                            f"A passenger born {entry['dob']} travels as "
+                            f"{PassengerType(expected).label.lower()}, not "
+                            f"{PassengerType(entry['type']).label.lower()}."
+                        )
+                    }
+                )
+
+        return passengers
+
+    @property
+    def reference_date(self) -> date:
+        """Passenger type is derived at the *return* date — a child can turn 12 mid-journey."""
+        return self.context.get("reference_date") or timezone.now().date()
+
+
+class BookingSegmentSerializer(serializers.ModelSerializer):
+    flight_public_id = serializers.UUIDField(source="flight.public_id", read_only=True)
+    designator = serializers.CharField(source="marketing_flight_number", read_only=True)
+    origin = serializers.CharField(source="flight.origin_airport_id", read_only=True)
+    destination = serializers.CharField(source="flight.destination_airport_id", read_only=True)
+    departure_utc = serializers.DateTimeField(source="flight.departure_utc", read_only=True)
+    arrival_utc = serializers.DateTimeField(source="flight.arrival_utc", read_only=True)
+    departure_local = serializers.DateTimeField(source="flight.departure_local", read_only=True)
+    arrival_local = serializers.DateTimeField(source="flight.arrival_local", read_only=True)
+    duration_minutes = serializers.IntegerField(
+        source="flight.duration_minutes", read_only=True
+    )
+
+    class Meta:
+        model = BookingSegment
+        fields = [
+            "sequence", "flight_public_id", "designator", "origin", "destination",
+            "departure_utc", "arrival_utc", "departure_local", "arrival_local",
+            "duration_minutes", "cabin", "rbd", "fare_basis", "status",
+            "baggage_allowance",
+        ]
+        read_only_fields = fields
+
+
+class PassengerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Passenger
+        fields = [
+            "id", "type", "first_name", "last_name", "dob", "gender", "nationality",
+            "doc_type", "doc_number", "doc_expiry", "frequent_flyer_number",
+        ]
+        read_only_fields = fields
+
+
+class BookingSerializer(serializers.ModelSerializer):
+    base = MoneyField("base_amount", read_only=True, source="*")
+    taxes = MoneyField("tax_amount", read_only=True, source="*")
+    fees = MoneyField("fee_amount", read_only=True, source="*")
+    discount = MoneyField("discount_amount", read_only=True, source="*")
+    total = MoneyField("total_amount", read_only=True, source="*")
+    balance_due = MoneyField("balance_due", read_only=True, source="*")
+    segments = BookingSegmentSerializer(many=True, read_only=True)
+    passengers = PassengerSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Booking
+        fields = [
+            "pnr", "public_id", "status", "trip_type", "currency",
+            "base", "taxes", "fees", "discount", "total", "balance_due",
+            "contact_email", "contact_phone", "hold_expires_at", "booked_at",
+            "segments", "passengers",
+        ]
+        read_only_fields = fields

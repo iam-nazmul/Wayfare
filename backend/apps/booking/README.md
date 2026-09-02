@@ -1,12 +1,13 @@
 # booking
 
-Search, offers, and (from M3) PNRs. Currently the read-only half: building itineraries, pricing
-them, and issuing signed offers.
+Search, offers, and PNRs: building itineraries, pricing them, issuing signed offers, and
+turning an accepted offer into a booking that holds real seats.
 
 ## Responsibilities
 
-- Owns: `SearchQuery`, `Offer`, itinerary construction, and the search orchestration.
-- Will own (M3): `Booking`, `BookingSegment`, `Passenger`, `SeatAssignment`, `InventoryHold`.
+- Owns: `SearchQuery`, `Offer`, `Booking`, `BookingSegment`, `Passenger`, `InventoryHold`,
+  itinerary construction, the search orchestration, and the booking state machine.
+- Will own (later): `SeatAssignment`, `SpecialServiceRequest`, `BookingAncillary`.
 - Does not own: seat counts (`apps.inventory`) or prices (`apps.pricing`). This module composes
   them.
 
@@ -19,6 +20,11 @@ them, and issuing signed offers.
 | [services/offers.py](services/offers.py) `sign` / `verify` | HMAC tamper-evidence over the priced payload |
 | [services/offers.py](services/offers.py) `load_offer` | Identity + signature + expiry check for booking |
 | [models.py](models.py) `Offer` | Priced result. **Holds no inventory** |
+| [services/booking.py](services/booking.py) `create_booking` | Offer → locked hold → PNR, in one transaction |
+| [services/state.py](services/state.py) `transition` | The only way `Booking.status` changes |
+| [services/pnr.py](services/pnr.py) `create_with_pnr` | PNR minting, retried on collision |
+| [services/pax.py](services/pax.py) `pax_type_for` | Passenger type derived from DOB at the return date |
+| [selectors.py](selectors.py) `bookings_for` / `guest_booking` | Every ownership check lives here |
 
 ## Invariants
 
@@ -34,6 +40,16 @@ them, and issuing signed offers.
   or `NoFareFound`, so unbookable results never surface.
 - **Cache hits mint fresh offer ids and expiries.** A 60-second-old price is fine; a 60-second-old
   *booking window* is not, so `_rehydrate` re-issues rather than replaying stored offers.
+- **Booking re-reads availability under lock.** `create_booking` calls `availability.hold`, which
+  takes `SELECT … FOR UPDATE` on `CabinConfig` and `BookingClass`. The offer's signature and expiry
+  are checked first, but neither says anything about whether the seats are still there.
+- **Status never moves by assignment.** `transition()` owns the frozen machine in
+  `services/state.py`, bumps `version`, and writes the audit row. It is guarded on the status it
+  read, so a concurrent mover loses rather than overwrites.
+- **Infants consume no seat inventory.** `seats_needed` counts ADT + CHD only; each infant is
+  attached to its own adult via `associated_adult`.
+- **`booking_held` goes to the outbox, not to an email.** Nothing leaves the process inside the
+  booking transaction.
 
 ## Entry points
 
@@ -41,7 +57,9 @@ them, and issuing signed offers.
 - `GET /api/v1/search/flights/{search_id}/offers?sort=&max_stops=&airline=`
 - `GET /api/v1/offers/{offer_id}` — re-validate before booking
 - `GET /api/v1/search/calendar?origin=&destination=&month=`
-- Tasks: `booking.expire_offers` (beat, 5 min), `booking.release_expired_holds` (M3)
+- `POST /api/v1/bookings` — offer → held PNR. `Idempotency-Key` required, `booking_create` throttle
+- `GET /api/v1/bookings/{pnr}` — owner or staff via the selector, guests with `?last_name=`
+- Tasks: `booking.expire_offers` (beat, 5 min), `booking.release_expired_holds` (beat, 60 s)
 
 ## Gotchas
 
@@ -57,6 +75,12 @@ them, and issuing signed offers.
   empty days. It is a browsing aid, not a quotable price.
 - `Offer` rows accumulate fast — one per priced itinerary per search. `booking.expire_offers` is
   what keeps the table and the calendar aggregate usable.
+- **A wrong surname on guest retrieval is a 404, never a 403.** A 403 would confirm the PNR exists.
+- Passenger type is judged at the *return* date, so a child who turns 12 mid-journey books as an
+  adult. `_reference_date` in [views.py](views.py) picks that date; one-way falls back to arrival.
+- `release_expired_holds` takes a Redis lock per PNR *and* re-reads status inside the transaction.
+  The lock only reduces contention — a payment landing at the same moment is why the re-read
+  exists.
 
 ## Testing
 
@@ -64,4 +88,6 @@ them, and issuing signed offers.
 
 Required: a tampered offer fails `verify`; an expired offer raises `OfferExpired`; a connection
 under MCT is excluded; a backtracking itinerary is excluded; a round trip prices both slices with
-the same return date.
+the same return date; booking twice with one `Idempotency-Key` yields one PNR; seats sold between
+search and booking give 409 `inventory_unavailable`; an expired hold releases its seats exactly
+once.

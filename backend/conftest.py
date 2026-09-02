@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 
 import pytest
+from django.core.cache import cache
 
 from apps.accounts.models import User
 from apps.catalog.models import Aircraft, Airline, Airport, City, Country, Currency
@@ -16,6 +17,14 @@ from apps.inventory.models import (
 )
 from apps.pricing.constants import FareTier, PassengerType
 from apps.pricing.models import Fare, FareFamily
+
+
+@pytest.fixture(autouse=True)
+def clear_cache():
+    """The search cache outlives a test's transaction; a leak rehydrates rolled-back rows."""
+    cache.clear()
+    yield
+    cache.clear()
 
 
 @pytest.fixture

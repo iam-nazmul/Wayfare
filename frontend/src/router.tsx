@@ -6,6 +6,8 @@ import { PageSkeleton } from './components/PageSkeleton';
 
 const Home = lazy(() => import('./features/search/HomePage'));
 const SearchResults = lazy(() => import('./features/search/SearchResultsPage'));
+const PassengerDetails = lazy(() => import('./features/booking/PassengerDetailsPage'));
+const BookingConfirmation = lazy(() => import('./features/booking/BookingConfirmationPage'));
 const NotFound = lazy(() => import('./features/shell/NotFoundPage'));
 
 function lazyRoute(Component: ComponentType) {
@@ -23,6 +25,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: lazyRoute(Home) },
       { path: 'search', element: lazyRoute(SearchResults) },
+      { path: 'book', element: lazyRoute(PassengerDetails) },
+      { path: 'booking/:pnr', element: lazyRoute(BookingConfirmation) },
       { path: '*', element: lazyRoute(NotFound) },
     ],
   },

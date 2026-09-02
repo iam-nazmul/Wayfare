@@ -102,3 +102,80 @@ export interface SearchRequest {
   currency: string;
   max_stops: number;
 }
+
+export type PassengerType = 'ADT' | 'CHD' | 'INF';
+
+export type BookingStatus =
+  | 'DRAFT'
+  | 'HELD'
+  | 'PENDING_TICKETING'
+  | 'TICKETED'
+  | 'CONFIRMED'
+  | 'CHANGE_PENDING'
+  | 'DISRUPTED'
+  | 'REBOOKED'
+  | 'CANCELLED'
+  | 'REFUND_PENDING'
+  | 'REFUNDED'
+  | 'EXPIRED';
+
+export interface PassengerInput {
+  type: PassengerType;
+  first_name: string;
+  last_name: string;
+  dob: string;
+  gender?: string;
+  nationality?: string;
+  doc_type?: string;
+  doc_number?: string;
+  doc_expiry?: string | null;
+  frequent_flyer_number?: string;
+}
+
+export interface Passenger extends PassengerInput {
+  id: number;
+}
+
+export interface BookingSegment {
+  sequence: number;
+  flight_public_id: string;
+  designator: string;
+  origin: string;
+  destination: string;
+  departure_utc: string;
+  arrival_utc: string;
+  departure_local: string;
+  arrival_local: string;
+  duration_minutes: number;
+  cabin: Cabin;
+  rbd: string;
+  fare_basis: string;
+  status: string;
+  baggage_allowance: Record<string, unknown>;
+}
+
+export interface BookingRequest {
+  offer_id: string;
+  passengers: PassengerInput[];
+  contact: { email: string; phone?: string };
+}
+
+export interface Booking {
+  pnr: string;
+  public_id: string;
+  status: BookingStatus;
+  trip_type: TripType;
+  currency: string;
+  base: Money;
+  taxes: Money;
+  fees: Money;
+  discount: Money;
+  total: Money;
+  balance_due: Money;
+  contact_email: string;
+  contact_phone: string;
+  hold_expires_at: string | null;
+  booked_at: string | null;
+  segments: BookingSegment[];
+  passengers: Passenger[];
+}

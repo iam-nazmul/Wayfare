@@ -141,6 +141,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Re-validates the offer's signature and expiry, re-reads availability under lock, holds the seats and mints a PNR. Requires an Idempotency-Key header. */
+        post: operations["bookings_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{pnr}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Retrieve a booking by PNR.
+         *
+         *     Owner or staff get it from the ownership-filtered selector; everyone else must supply the
+         *     lead surname, and gets a 404 — never a 403 — when it does not match, so the endpoint cannot
+         *     be used to confirm that a PNR exists.
+         */
+        get: operations["bookings_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collect": {
         parameters: {
             query?: never;
@@ -549,6 +589,29 @@ export interface components {
         };
         /** @enum {unknown} */
         BlankEnum: "";
+        Booking: {
+            readonly pnr: string;
+            /** Format: uuid */
+            readonly public_id: string;
+            readonly status: components["schemas"]["BookingStatusEnum"];
+            readonly trip_type: components["schemas"]["TripTypeEnum"];
+            readonly currency: string;
+            readonly base: string;
+            readonly taxes: string;
+            readonly fees: string;
+            readonly discount: string;
+            readonly total: string;
+            readonly balance_due: string;
+            /** Format: email */
+            readonly contact_email: string;
+            readonly contact_phone: string;
+            /** Format: date-time */
+            readonly hold_expires_at: string | null;
+            /** Format: date-time */
+            readonly booked_at: string | null;
+            readonly segments: components["schemas"]["BookingSegment"][];
+            readonly passengers: components["schemas"]["Passenger"][];
+        };
         BookingClass: {
             readonly id: number;
             rbd: string;
@@ -559,6 +622,58 @@ export interface components {
             is_open?: boolean;
             sort_order?: number;
         };
+        BookingCreateRequest: {
+            /** Format: uuid */
+            offer_id: string;
+            passengers: components["schemas"]["PassengerInputRequest"][];
+            contact: components["schemas"]["ContactRequest"];
+        };
+        BookingSegment: {
+            readonly sequence: number;
+            /** Format: uuid */
+            readonly flight_public_id: string;
+            readonly designator: string;
+            readonly origin: string;
+            readonly destination: string;
+            /** Format: date-time */
+            readonly departure_utc: string;
+            /** Format: date-time */
+            readonly arrival_utc: string;
+            /** Format: date-time */
+            readonly departure_local: string;
+            /** Format: date-time */
+            readonly arrival_local: string;
+            readonly duration_minutes: number;
+            readonly cabin: components["schemas"]["CabinEnum"];
+            readonly rbd: string;
+            readonly fare_basis: string;
+            readonly status: components["schemas"]["BookingSegmentStatusEnum"];
+            readonly baggage_allowance: unknown;
+        };
+        /**
+         * @description * `HELD` - Held
+         *     * `CONFIRMED` - Confirmed
+         *     * `FLOWN` - Flown
+         *     * `CANCELLED` - Cancelled
+         * @enum {string}
+         */
+        BookingSegmentStatusEnum: "HELD" | "CONFIRMED" | "FLOWN" | "CANCELLED";
+        /**
+         * @description * `DRAFT` - Draft
+         *     * `HELD` - Held
+         *     * `PENDING_TICKETING` - Pending ticketing
+         *     * `TICKETED` - Ticketed
+         *     * `CONFIRMED` - Confirmed
+         *     * `CHANGE_PENDING` - Change pending
+         *     * `DISRUPTED` - Disrupted
+         *     * `REBOOKED` - Rebooked
+         *     * `CANCELLED` - Cancelled
+         *     * `REFUND_PENDING` - Refund pending
+         *     * `REFUNDED` - Refunded
+         *     * `EXPIRED` - Expired
+         * @enum {string}
+         */
+        BookingStatusEnum: "DRAFT" | "HELD" | "PENDING_TICKETING" | "TICKETED" | "CONFIRMED" | "CHANGE_PENDING" | "DISRUPTED" | "REBOOKED" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED" | "EXPIRED";
         CabinConfig: {
             readonly id: number;
             cabin: components["schemas"]["CabinEnum"];
@@ -598,6 +713,11 @@ export interface components {
             props?: {
                 [key: string]: unknown;
             };
+        };
+        ContactRequest: {
+            /** Format: email */
+            email: string;
+            phone?: string;
         };
         Currency: {
             code: string;
@@ -818,6 +938,35 @@ export interface components {
             next?: string | null;
             /** Format: uri */
             previous?: string | null;
+        };
+        Passenger: {
+            readonly id: number;
+            readonly type: components["schemas"]["TypeEnum"];
+            readonly first_name: string;
+            readonly last_name: string;
+            /** Format: date */
+            readonly dob: string;
+            readonly gender: components["schemas"]["GenderEnum"];
+            readonly nationality: string;
+            readonly doc_type: components["schemas"]["DocTypeEnum"];
+            readonly doc_number: string;
+            /** Format: date */
+            readonly doc_expiry: string | null;
+            readonly frequent_flyer_number: string;
+        };
+        PassengerInputRequest: {
+            type: components["schemas"]["TypeEnum"];
+            first_name: string;
+            last_name: string;
+            /** Format: date */
+            dob: string;
+            gender?: components["schemas"]["GenderEnum"] | components["schemas"]["BlankEnum"];
+            nationality?: string;
+            doc_type?: components["schemas"]["DocTypeEnum"] | components["schemas"]["BlankEnum"];
+            doc_number?: string;
+            /** Format: date */
+            doc_expiry?: string | null;
+            frequent_flyer_number?: string;
         };
         PassengersRequest: {
             /** @default 1 */
@@ -1043,6 +1192,13 @@ export interface components {
          * @enum {string}
          */
         TripTypeEnum: "ONE_WAY" | "ROUND_TRIP" | "MULTI_CITY";
+        /**
+         * @description * `ADT` - Adult
+         *     * `CHD` - Child
+         *     * `INF` - Infant
+         * @enum {string}
+         */
+        TypeEnum: "ADT" | "CHD" | "INF";
         User: {
             /** Format: uuid */
             readonly public_id: string;
@@ -1256,6 +1412,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["User"];
+                };
+            };
+        };
+    };
+    bookings_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["BookingCreateRequest"];
+                "multipart/form-data": components["schemas"]["BookingCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Booking"];
+                };
+            };
+        };
+    };
+    bookings_retrieve: {
+        parameters: {
+            query?: {
+                /** @description Required for guest retrieval; ignored when authenticated as the owner. */
+                last_name?: string;
+            };
+            header?: never;
+            path: {
+                pnr: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Booking"];
                 };
             };
         };
