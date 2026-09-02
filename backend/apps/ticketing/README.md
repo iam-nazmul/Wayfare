@@ -6,11 +6,11 @@ happens to them afterwards.
 ## Responsibilities
 
 - Owns: `Ticket`, `TicketCoupon`, `TicketEvent`, `TicketSerial`, and ticket-number allocation.
-- Owns the `PENDING_TICKETING → TICKETED` transition.
+- Owns the `PENDING_TICKETING → TICKETED` and `CHANGE_PENDING → TICKETED` transitions, coupon
+  refunds, and reissue on exchange.
 - Does not own: payment (`apps.payments`) or booking status rules
   (`booking/services/state.py::transition`).
-- Not built yet: EMDs (there are no ancillaries to issue them against), void, exchange, refund of
-  a coupon, and the itinerary PDF.
+- Not built yet: EMDs (there are no ancillaries to issue them against) and the itinerary PDF.
 
 ## Key objects
 
@@ -21,6 +21,8 @@ happens to them afterwards.
 | [services/numbers.py](services/numbers.py) `is_valid` | Check-digit validation for an inbound number |
 | [tasks.py](tasks.py) `issue_tickets` | Dispatched after payment capture |
 | [tasks.py](tasks.py) `void_expired_unticketed` | Alerts on money taken with no ticket behind it |
+| [services/exchange.py](services/exchange.py) `exchange_tickets` | Reissue with `conjunction_of` linkage |
+| [services/refund.py](services/refund.py) `refund_coupons` | Close out coupons behind a refund |
 
 ## Invariants
 
@@ -33,6 +35,12 @@ happens to them afterwards.
 - **Ticket totals sum to the booking total.** The remainder from dividing across passengers goes
   to the first, so the two never disagree by a cent.
 - **A ticket's history is append-only.** `TicketEvent` rows are written, never edited.
+- **An exchanged coupon is `EXCHANGED`, never `REFUNDED`.** Its value moved into the new ticket
+  rather than back to the passenger, and revenue accounting reads that difference.
+- **A flown coupon is never refunded.** `refund_coupons` closes only `OPEN` and `CHECKED_IN` ones,
+  so a partly-flown journey keeps the revenue it earned.
+- **The exchange settles the new seats before releasing the old.** The other order leaves a window
+  where the passenger holds neither.
 
 ## Entry points
 
@@ -53,6 +61,9 @@ happens to them afterwards.
 - The unique constraint on `(booking, passenger)` is partial — it applies to `ISSUED` tickets
   only, so a reissue after a void is still possible.
 - Coupon numbers start at 1, not 0. They are printed on the ticket and read aloud at the desk.
+- On a reissue the *new* segments are the ones at `HELD`; the superseded ones are still
+  `CONFIRMED` until `exchange_tickets` cancels them. Reading "the current segments" without that
+  filter picks up both.
 
 ## Testing
 

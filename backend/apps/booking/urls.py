@@ -13,4 +13,15 @@ urlpatterns = [
     path("offers/<uuid:offer_id>", views.OfferDetailView.as_view(), name="offer-detail"),
     path("bookings", views.BookingCreateView.as_view(), name="booking-create"),
     path("bookings/<str:pnr>", views.BookingDetailView.as_view(), name="booking-detail"),
+    path("bookings/<str:pnr>/cancel", views.BookingCancelView.as_view(), name="booking-cancel"),
+    path(
+        "bookings/<str:pnr>/change/quote",
+        views.BookingChangeQuoteView.as_view(),
+        name="booking-change-quote",
+    ),
+    path(
+        "bookings/<str:pnr>/change/confirm",
+        views.BookingChangeConfirmView.as_view(),
+        name="booking-change-confirm",
+    ),
 ]

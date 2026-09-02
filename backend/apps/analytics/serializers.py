@@ -21,3 +21,45 @@ class CollectEventSerializer(serializers.Serializer):
 
 class CollectBatchSerializer(serializers.Serializer):
     events = serializers.ListField(child=CollectEventSerializer(), max_length=100, min_length=1)
+
+
+#: A wider window than this is a data export, not a report, and will time out on ClickHouse.
+MAX_REPORT_SPAN_DAYS = 400
+DEFAULT_REPORT_SPAN_DAYS = 30
+
+
+class ReportWindowSerializer(serializers.Serializer):
+    date_from = serializers.DateField(required=False)
+    date_to = serializers.DateField(required=False)
+
+    def validate(self, attrs: dict) -> dict:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        today = timezone.now().date()
+        attrs["date_to"] = attrs.get("date_to") or today
+        attrs["date_from"] = attrs.get("date_from") or attrs["date_to"] - timedelta(
+            days=DEFAULT_REPORT_SPAN_DAYS
+        )
+
+        if attrs["date_from"] > attrs["date_to"]:
+            raise serializers.ValidationError(
+                {"date_from": "date_from cannot be after date_to."}
+            )
+        if (attrs["date_to"] - attrs["date_from"]).days > MAX_REPORT_SPAN_DAYS:
+            raise serializers.ValidationError(
+                {"date_from": f"A report spans at most {MAX_REPORT_SPAN_DAYS} days."}
+            )
+        return attrs
+
+
+class ReportResponseSerializer(serializers.Serializer):
+    """Schema-only: reports are shaped by their query, so rows stay untyped."""
+
+    report = serializers.CharField()
+    date_from = serializers.DateField()
+    date_to = serializers.DateField()
+    columns = serializers.ListField(child=serializers.CharField())
+    rows = serializers.ListField(child=serializers.ListField())
+    row_count = serializers.IntegerField()

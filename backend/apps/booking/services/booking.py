@@ -94,6 +94,7 @@ def create_booking(
         fee_amount=_amount(breakdown, "fees"),
         discount_amount=_amount(breakdown, "discount"),
         total_amount=offer.total_amount,
+        price_breakdown=breakdown,
         contact_email=contact.email,
         contact_phone=contact.phone,
         hold_expires_at=expires_at,

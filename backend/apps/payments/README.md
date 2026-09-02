@@ -9,9 +9,10 @@ intake that turns a held booking into a sold one.
   provider abstraction.
 - Owns the moment a hold becomes a sale — it calls `inventory.availability.confirm`, moves the
   booking to `PENDING_TICKETING`, and dispatches ticketing.
+- Owns the refund lifecycle: request, auto-approval, the ops queue, and payout.
 - Does not own: seat counts (`apps.inventory`), booking status rules (`booking/services/state.py`),
-  or ticket issuance (`apps.ticketing`).
-- Not built yet: refund processing (`payments.process_refund`), agency credit, Stripe.
+  ticket issuance (`apps.ticketing`), or the penalty ladder (`pricing/services/refunds.py`).
+- Not built yet: agency credit, Stripe, partial refunds.
 
 ## Key objects
 
@@ -23,6 +24,9 @@ intake that turns a held booking into a sold one.
 | [services/webhooks.py](services/webhooks.py) `record_event` | Verify, store once, return `None` on a replay |
 | [services/confirm.py](services/confirm.py) `apply_successful_payment` | The money-touching transaction |
 | [tasks.py](tasks.py) `handle_payment_succeeded` | Applies one callback under the booking lock |
+| [tasks.py](tasks.py) `process_refund` | Provider payout, ledger, coupons, booking → `REFUNDED` |
+| [services/refunds.py](services/refunds.py) `request_refund` / `approve` / `reject` | Refund lifecycle |
+| [services/ledger.py](services/ledger.py) `post` / `post_reprice` | The only writer of `LedgerEntry` |
 
 ## Invariants
 
@@ -39,6 +43,13 @@ intake that turns a held booking into a sold one.
   longer `HELD`, the seats stay released, a `Refund` is queued and `payment_requires_refund` goes
   to the outbox. Silently keeping the money is the worst available outcome.
 - **The ledger is append-only.** Rows are never updated or deleted, and the admin enforces it.
+  Everything writes through `services/ledger.py::post`, which carries the running balance
+  forward — an exchange posts its re-price adjustment there, or the delta payment would credit a
+  balance nothing ever debited and the ledger would end up negative.
+- **One open refund per booking.** A second cancel request returns the existing one rather than
+  queueing a second payout.
+- **Auto-approval is a threshold, not a shortcut.** Under `REFUND_AUTO_APPROVE_LIMIT` the refund
+  is approved and paid immediately; above it, it waits in the ops queue for finance.
 - **Confirmation does not depend on the webhook.** `reconcile_pending_payments` re-dispatches any
   verified event still unprocessed after 3 minutes; the client polls the booking.
 
@@ -48,10 +59,11 @@ intake that turns a held booking into a sold one.
 - `GET /api/v1/bookings/{pnr}/payment-intents/{id}` — poll one intent
 - `POST /api/v1/bookings/{pnr}/payment-intents/{id}/confirm` — **sandbox only**, stands in for the
   provider's browser SDK
-- `GET /api/v1/bookings/{pnr}/payments`
+- `GET /api/v1/bookings/{pnr}/payments` · `/refunds`
+- `GET /api/v1/ops/refunds` · `POST /ops/refunds/{id}/approve` · `/reject` — finance only
 - `POST /api/v1/webhooks/payments/{provider}` — unauthenticated, signature-verified
 - Tasks: `payments.handle_payment_succeeded` (webhook), `payments.reconcile_pending_payments`
-  (beat, 5 min)
+  (beat, 5 min), `payments.process_refund` (on approval)
 
 ## Gotchas
 
@@ -66,6 +78,11 @@ intake that turns a held booking into a sold one.
   `4000000000003220` exercises the branch.
 - An intent is reused while it is live and the amount matches, so two tabs on the card form
   cannot become two charges.
+- `process_refund` locks the refund row with `select_for_update(of=("self",))`. `payment` is a
+  nullable FK and Postgres refuses `FOR UPDATE` on the nullable side of an outer join.
+- A `CHANGE_PENDING` booking is payable: capture settles the exchange's holds and the reissue
+  follows. `apply_successful_payment` branches on booking status, so adding a new payable state
+  means teaching it about that state too.
 
 ## Testing
 

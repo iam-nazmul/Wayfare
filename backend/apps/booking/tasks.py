@@ -10,6 +10,7 @@ from apps.ops.services.outbox import emit
 
 from .constants import BookingStatus
 from .models import Booking, Offer
+from .services.change import abandon_change
 from .services.state import transition
 
 logger = logging.getLogger("wayfare.booking")
@@ -45,7 +46,8 @@ def release_expired_holds(batch: int = 200) -> int:
     cutoff = timezone.now()
     pnrs = list(
         Booking.objects.filter(
-            status=BookingStatus.HELD, hold_expires_at__lt=cutoff
+            status__in=[BookingStatus.HELD, BookingStatus.CHANGE_PENDING],
+            hold_expires_at__lt=cutoff,
         ).values_list("pnr", flat=True)[:batch]
     )
 
@@ -65,10 +67,19 @@ def release_expired_holds(batch: int = 200) -> int:
 @transaction.atomic
 def _release_one(pnr: str) -> int:
     booking = Booking.objects.select_for_update().filter(pnr=pnr).first()
-    if booking is None or booking.status != BookingStatus.HELD:
+    if booking is None or booking.status not in {
+        BookingStatus.HELD,
+        BookingStatus.CHANGE_PENDING,
+    }:
         return 0
     if booking.hold_expires_at is None or booking.hold_expires_at >= timezone.now():
         return 0
+
+    if booking.status == BookingStatus.CHANGE_PENDING:
+        # An unpaid exchange: drop the proposed seats and leave the passenger on the ticket
+        # they already hold, rather than expiring a journey they have already paid for.
+        abandon_change(booking)
+        return 1
 
     holds = list(booking.holds.filter(released_at__isnull=True))
     if holds:

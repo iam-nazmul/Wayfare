@@ -181,6 +181,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bookings/{pnr}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Cancel a booking and quote the refund.
+         *
+         *     ``quote_only`` returns the penalty without cancelling, so the traveller can see what a
+         *     cancellation costs before committing to it.
+         */
+        post: operations["bookings_cancel_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{pnr}/change/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Move the booking onto the new itinerary.
+         *
+         *     The new seats are taken and the booking becomes `CHANGE_PENDING`. Anything owed is collected
+         *     through the ordinary payment flow, which triggers the reissue; when nothing is owed the
+         *     exchange completes immediately.
+         */
+        post: operations["bookings_change_confirm_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{pnr}/change/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Price an exchange onto a new offer. Changes nothing. */
+        post: operations["bookings_change_quote_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bookings/{pnr}/payment-intents": {
         parameters: {
             query?: never;
@@ -245,6 +307,66 @@ export interface paths {
             cookie?: never;
         };
         get: operations["bookings_payments_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{pnr}/rebook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Take one of the offered alternatives.
+         *
+         *     Availability is re-read under lock: an option is a suggestion, not a reservation, so a
+         *     flight that filled up in the meantime returns 409 rather than overselling.
+         */
+        post: operations["bookings_rebook_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{pnr}/rebook-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Alternatives offered after a disruption.
+         *
+         *     Returns `[]` for an undisrupted booking rather than a 404 — the client asks routinely.
+         */
+        get: operations["bookings_rebook_options_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{pnr}/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Refund history for one booking. */
+        get: operations["bookings_refunds_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -398,6 +520,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ops/disruptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Open disruptions, newest first. Ops staff only. */
+        get: operations["ops_disruptions_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ops/flights/": {
         parameters: {
             query?: never;
@@ -473,6 +612,74 @@ export interface paths {
         };
         /** @description Passenger manifest. Returns seats until booking lands in M3. */
         get: operations["ops_flights_manifest_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Refunds awaiting a decision. Finance only. */
+        get: operations["ops_refunds_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/refunds/{refund_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Release a queued refund to the provider. */
+        post: operations["ops_refunds_approve_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/refunds/{refund_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Decline a queued refund. The booking stays cancelled; the money is not returned. */
+        post: operations["ops_refunds_reject_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/reports/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Operational reports (SPEC.md §9.5). Cached for five minutes; send `Accept: text/csv` for a CSV stream instead of JSON. */
+        get: operations["ops_reports_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -810,6 +1017,37 @@ export interface components {
                 [key: string]: string;
             } | null;
         };
+        CancelRequestRequest: {
+            reason?: string;
+            /** @default false */
+            quote_only: boolean;
+        };
+        CancelResponse: {
+            booking: components["schemas"]["Booking"];
+            quote: components["schemas"]["RefundQuote"];
+            voided: boolean;
+            /** Format: uuid */
+            refund_id: string | null;
+            refund_status: string | null;
+        };
+        ChangeConfirmResponse: {
+            booking: components["schemas"]["Booking"];
+            quote: components["schemas"]["ChangeQuote"];
+        };
+        ChangeQuote: {
+            old_total: components["schemas"]["MoneyOut"];
+            new_total: components["schemas"]["MoneyOut"];
+            fare_difference: components["schemas"]["MoneyOut"];
+            change_fee: components["schemas"]["MoneyOut"];
+            amount_due: components["schemas"]["MoneyOut"];
+            residual: components["schemas"]["MoneyOut"];
+            changeable: boolean;
+            reason: string;
+        };
+        ChangeRequestRequest: {
+            /** Format: uuid */
+            offer_id: string;
+        };
         CollectBatchRequest: {
             events: components["schemas"]["CollectEventRequest"][];
         };
@@ -836,6 +1074,26 @@ export interface components {
             symbol?: string;
             minor_units?: number;
         };
+        Disruption: {
+            /** Format: uuid */
+            readonly disruption_id: string;
+            readonly flight: string;
+            readonly type: components["schemas"]["DisruptionTypeEnum"];
+            readonly reason: string;
+            readonly delay_minutes: number;
+            /** Format: date-time */
+            readonly detected_at: string;
+            /** Format: date-time */
+            readonly resolved_at: string | null;
+        };
+        /**
+         * @description * `CANCELLATION` - Cancellation
+         *     * `DELAY` - Significant delay
+         *     * `DIVERSION` - Diversion
+         *     * `SCHEDULE_CHANGE` - Schedule change
+         * @enum {string}
+         */
+        DisruptionTypeEnum: "CANCELLATION" | "DELAY" | "DIVERSION" | "SCHEDULE_CHANGE";
         /**
          * @description * `PASSPORT` - Passport
          *     * `NATIONAL_ID` - National ID
@@ -988,6 +1246,11 @@ export interface components {
             /** @default 90 */
             days: number;
         };
+        MoneyOut: {
+            /** Format: decimal */
+            amount: string;
+            currency: string;
+        };
         Offer: {
             /** Format: uuid */
             readonly offer_id: string;
@@ -1052,7 +1315,7 @@ export interface components {
         };
         Passenger: {
             readonly id: number;
-            readonly type: components["schemas"]["TypeEnum"];
+            readonly type: components["schemas"]["TypeD47Enum"];
             readonly first_name: string;
             readonly last_name: string;
             /** Format: date */
@@ -1066,7 +1329,7 @@ export interface components {
             readonly frequent_flyer_number: string;
         };
         PassengerInputRequest: {
-            type: components["schemas"]["TypeEnum"];
+            type: components["schemas"]["TypeD47Enum"];
             first_name: string;
             last_name: string;
             /** Format: date */
@@ -1202,6 +1465,73 @@ export interface components {
          * @enum {string}
          */
         PaymentStatusEnum: "AUTHORISED" | "CAPTURED" | "FAILED" | "REFUNDED" | "PARTIALLY_REFUNDED";
+        RebookOption: {
+            /** Format: uuid */
+            readonly option_id: string;
+            readonly rank: number;
+            readonly status: components["schemas"]["RebookOptionStatusEnum"];
+            readonly designator: string;
+            readonly origin: string;
+            readonly destination: string;
+            /** Format: date-time */
+            readonly departure_local: string;
+            /** Format: date-time */
+            readonly arrival_local: string;
+            readonly duration_minutes: number;
+            readonly cabin: string;
+            readonly fare_delta: string;
+            /** Format: date-time */
+            readonly expires_at: string;
+            readonly disrupted_flight: string;
+            readonly disruption_type: string;
+            readonly reason: string;
+        };
+        /**
+         * @description * `OFFERED` - Offered
+         *     * `ACCEPTED` - Accepted
+         *     * `DECLINED` - Declined
+         *     * `EXPIRED` - Expired
+         * @enum {string}
+         */
+        RebookOptionStatusEnum: "OFFERED" | "ACCEPTED" | "DECLINED" | "EXPIRED";
+        RebookRequestRequest: {
+            /** Format: uuid */
+            option_id: string;
+        };
+        Refund: {
+            /** Format: uuid */
+            readonly refund_id: string;
+            readonly pnr: string;
+            readonly amount: string;
+            readonly penalty: string;
+            readonly status: components["schemas"]["RefundStatusEnum"];
+            readonly reason: string;
+            readonly provider_refund_id: string;
+            /** Format: date-time */
+            readonly processed_at: string | null;
+            /** Format: date-time */
+            readonly created_at: string;
+        };
+        RefundDecisionRequest: {
+            reason?: string;
+        };
+        RefundQuote: {
+            paid: components["schemas"]["MoneyOut"];
+            penalty: components["schemas"]["MoneyOut"];
+            non_refundable_tax: components["schemas"]["MoneyOut"];
+            refundable: components["schemas"]["MoneyOut"];
+            refundable_fare: boolean;
+            reason: string;
+        };
+        /**
+         * @description * `REQUESTED` - Requested
+         *     * `APPROVED` - Approved
+         *     * `REJECTED` - Rejected
+         *     * `PROCESSED` - Processed
+         *     * `FAILED` - Failed
+         * @enum {string}
+         */
+        RefundStatusEnum: "REQUESTED" | "APPROVED" | "REJECTED" | "PROCESSED" | "FAILED";
         RegisterRequest: {
             /** Format: email */
             email: string;
@@ -1209,6 +1539,17 @@ export interface components {
             first_name?: string;
             last_name?: string;
             phone?: string;
+        };
+        /** @description Schema-only: reports are shaped by their query, so rows stay untyped. */
+        ReportResponse: {
+            report: string;
+            /** Format: date */
+            date_from: string;
+            /** Format: date */
+            date_to: string;
+            columns: string[];
+            rows: unknown[][];
+            row_count: number;
         };
         Route: {
             readonly id: number;
@@ -1413,7 +1754,7 @@ export interface components {
          *     * `INF` - Infant
          * @enum {string}
          */
-        TypeEnum: "ADT" | "CHD" | "INF";
+        TypeD47Enum: "ADT" | "CHD" | "INF";
         User: {
             /** Format: uuid */
             readonly public_id: string;
@@ -1680,6 +2021,96 @@ export interface operations {
             };
         };
     };
+    bookings_cancel_create: {
+        parameters: {
+            query?: {
+                /** @description Required for guest access */
+                last_name?: string;
+            };
+            header?: never;
+            path: {
+                pnr: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CancelRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["CancelRequestRequest"];
+                "multipart/form-data": components["schemas"]["CancelRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CancelResponse"];
+                };
+            };
+        };
+    };
+    bookings_change_confirm_create: {
+        parameters: {
+            query?: {
+                /** @description Required for guest access */
+                last_name?: string;
+            };
+            header?: never;
+            path: {
+                pnr: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ChangeRequestRequest"];
+                "multipart/form-data": components["schemas"]["ChangeRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeConfirmResponse"];
+                };
+            };
+        };
+    };
+    bookings_change_quote_create: {
+        parameters: {
+            query?: {
+                /** @description Required for guest access */
+                last_name?: string;
+            };
+            header?: never;
+            path: {
+                pnr: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ChangeRequestRequest"];
+                "multipart/form-data": components["schemas"]["ChangeRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeQuote"];
+                };
+            };
+        };
+    };
     bookings_payment_intents_create: {
         parameters: {
             query?: {
@@ -1777,6 +2208,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Payment"][];
+                };
+            };
+        };
+    };
+    bookings_rebook_create: {
+        parameters: {
+            query?: {
+                /** @description Required for guest access */
+                last_name?: string;
+            };
+            header?: never;
+            path: {
+                pnr: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RebookRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RebookRequestRequest"];
+                "multipart/form-data": components["schemas"]["RebookRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Booking"];
+                };
+            };
+        };
+    };
+    bookings_rebook_options_list: {
+        parameters: {
+            query?: {
+                /** @description Required for guest access */
+                last_name?: string;
+            };
+            header?: never;
+            path: {
+                pnr: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RebookOption"][];
+                };
+            };
+        };
+    };
+    bookings_refunds_list: {
+        parameters: {
+            query?: {
+                /** @description Required for guest access */
+                last_name?: string;
+            };
+            header?: never;
+            path: {
+                pnr: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refund"][];
                 };
             };
         };
@@ -2086,6 +2595,25 @@ export interface operations {
             };
         };
     };
+    ops_disruptions_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Disruption"][];
+                };
+            };
+        };
+    };
     ops_flights_list: {
         parameters: {
             query?: {
@@ -2281,6 +2809,114 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Seat"][];
+                };
+            };
+        };
+    };
+    ops_refunds_list: {
+        parameters: {
+            query?: {
+                /** @description Filter by refund status */
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refund"][];
+                };
+            };
+        };
+    };
+    ops_refunds_approve_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                refund_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RefundDecisionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RefundDecisionRequest"];
+                "multipart/form-data": components["schemas"]["RefundDecisionRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refund"];
+                };
+            };
+        };
+    };
+    ops_refunds_reject_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                refund_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RefundDecisionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RefundDecisionRequest"];
+                "multipart/form-data": components["schemas"]["RefundDecisionRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Refund"];
+                };
+            };
+        };
+    };
+    ops_reports_retrieve: {
+        parameters: {
+            query?: {
+                /** @description Defaults to 30 days ago */
+                date_from?: string;
+                /** @description Defaults to today */
+                date_to?: string;
+                /** @description fare-trend only */
+                destination?: string;
+                format?: "csv" | "json";
+                /** @description fare-trend only */
+                origin?: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportResponse"];
+                    "text/csv": components["schemas"]["ReportResponse"];
                 };
             };
         };

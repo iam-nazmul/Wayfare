@@ -35,7 +35,7 @@ def push(kind: str, payload: dict[str, Any]) -> None:
             maxlen=settings.EVENT_STREAM_MAXLEN,
             approximate=True,
         )
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.warning("event_buffer_unavailable", extra={"kind": kind}, exc_info=False)
 
 

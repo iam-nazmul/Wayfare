@@ -234,3 +234,51 @@ class BookingSerializer(serializers.ModelSerializer):
             "segments", "passengers",
         ]
         read_only_fields = fields
+
+
+class MoneyOutSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    currency = serializers.CharField(max_length=3)
+
+
+class RefundQuoteSerializer(serializers.Serializer):
+    paid = MoneyOutSerializer()
+    penalty = MoneyOutSerializer()
+    non_refundable_tax = MoneyOutSerializer()
+    refundable = MoneyOutSerializer()
+    refundable_fare = serializers.BooleanField()
+    reason = serializers.CharField()
+
+
+class CancelRequestSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    #: Ask for the quote without cancelling. The traveller sees the penalty before committing.
+    quote_only = serializers.BooleanField(default=False)
+
+
+class CancelResponseSerializer(serializers.Serializer):
+    booking = BookingSerializer()
+    quote = RefundQuoteSerializer()
+    voided = serializers.BooleanField()
+    refund_id = serializers.UUIDField(allow_null=True)
+    refund_status = serializers.CharField(allow_null=True)
+
+
+class ChangeRequestSerializer(serializers.Serializer):
+    offer_id = serializers.UUIDField()
+
+
+class ChangeQuoteSerializer(serializers.Serializer):
+    old_total = MoneyOutSerializer()
+    new_total = MoneyOutSerializer()
+    fare_difference = MoneyOutSerializer()
+    change_fee = MoneyOutSerializer()
+    amount_due = MoneyOutSerializer()
+    residual = MoneyOutSerializer()
+    changeable = serializers.BooleanField()
+    reason = serializers.CharField()
+
+
+class ChangeConfirmResponseSerializer(serializers.Serializer):
+    booking = BookingSerializer()
+    quote = ChangeQuoteSerializer()

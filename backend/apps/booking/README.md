@@ -6,7 +6,8 @@ turning an accepted offer into a booking that holds real seats.
 ## Responsibilities
 
 - Owns: `SearchQuery`, `Offer`, `Booking`, `BookingSegment`, `Passenger`, `InventoryHold`,
-  itinerary construction, the search orchestration, and the booking state machine.
+  itinerary construction, the search orchestration, the booking state machine, and the
+  cancel / void / exchange servicing flows.
 - Will own (later): `SeatAssignment`, `SpecialServiceRequest`, `BookingAncillary`.
 - Does not own: seat counts (`apps.inventory`) or prices (`apps.pricing`). This module composes
   them.
@@ -25,6 +26,10 @@ turning an accepted offer into a booking that holds real seats.
 | [services/pnr.py](services/pnr.py) `create_with_pnr` | PNR minting, retried on collision |
 | [services/pax.py](services/pax.py) `pax_type_for` | Passenger type derived from DOB at the return date |
 | [selectors.py](selectors.py) `bookings_for` / `guest_booking` | Every ownership check lives here |
+| [services/cancel.py](services/cancel.py) `cancel_booking` | Release seats, quote the refund, raise it |
+| [services/cancel.py](services/cancel.py) `is_voidable` | The same-day void window |
+| [services/change.py](services/change.py) `quote_change` / `confirm_change` | Price and stage an exchange |
+| [services/change.py](services/change.py) `abandon_change` | Roll back an exchange nobody paid for |
 
 ## Invariants
 
@@ -50,6 +55,12 @@ turning an accepted offer into a booking that holds real seats.
   attached to its own adult via `associated_adult`.
 - **`booking_held` goes to the outbox, not to an email.** Nothing leaves the process inside the
   booking transaction.
+- **Cancelling releases the seats before anyone approves the money.** Whether a refund is owed is
+  a fare-rule question that can wait for a human; a seat held by a cancelled booking is one
+  nobody can sell.
+- **An exchange keeps the old seats until the delta is paid.** New inventory is held first, the
+  old stays sold, and the swap happens at reissue. A traveller who abandons a change still holds
+  the ticket they started with — `abandon_change` is what puts it back.
 
 ## Entry points
 
@@ -59,6 +70,8 @@ turning an accepted offer into a booking that holds real seats.
 - `GET /api/v1/search/calendar?origin=&destination=&month=`
 - `POST /api/v1/bookings` — offer → held PNR. `Idempotency-Key` required, `booking_create` throttle
 - `GET /api/v1/bookings/{pnr}` — owner or staff via the selector, guests with `?last_name=`
+- `POST /api/v1/bookings/{pnr}/cancel` — `quote_only` prices it without cancelling
+- `POST /api/v1/bookings/{pnr}/change/quote` · `/change/confirm` — exchange flow
 - Tasks: `booking.expire_offers` (beat, 5 min), `booking.release_expired_holds` (beat, 60 s)
 
 ## Gotchas
@@ -80,7 +93,13 @@ turning an accepted offer into a booking that holds real seats.
   adult. `_reference_date` in [views.py](views.py) picks that date; one-way falls back to arrival.
 - `release_expired_holds` takes a Redis lock per PNR *and* re-reads status inside the transaction.
   The lock only reduces contention — a payment landing at the same moment is why the re-read
-  exists.
+  exists. It sweeps `CHANGE_PENDING` as well as `HELD`: an unpaid exchange is abandoned rather
+  than expired, because the passenger has already paid for the original journey.
+- **A same-day cancellation is a void, not a refund** — full amount, no penalty, coupons
+  untouched. Once the ticket is a day old the penalty ladder applies instead, so a test that
+  cancels immediately is exercising the void path whether it meant to or not.
+- The fare family that sets the change fee is the one being changed *out of*, read from the
+  segment still `CONFIRMED` — not the new offer's family.
 
 ## Testing
 
@@ -90,4 +109,5 @@ Required: a tampered offer fails `verify`; an expired offer raises `OfferExpired
 under MCT is excluded; a backtracking itinerary is excluded; a round trip prices both slices with
 the same return date; booking twice with one `Idempotency-Key` yields one PNR; seats sold between
 search and booking give 409 `inventory_unavailable`; an expired hold releases its seats exactly
-once.
+once; a same-day cancel is a penalty-free void; an exchange links the new ticket to the old
+through `conjunction_of` and leaves the ledger at zero.

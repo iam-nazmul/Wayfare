@@ -1,8 +1,10 @@
 from django.db.models import QuerySet
+from rest_framework.exceptions import NotFound
 
 from apps.booking.selectors import booking_for, guest_booking
 
-from .models import Payment, PaymentIntent
+from .constants import RefundStatus
+from .models import Payment, PaymentIntent, Refund
 
 
 def booking_or_none(actor, pnr: str, last_name: str = ""):
@@ -19,3 +21,20 @@ def intent_for(actor, pnr: str, public_id, last_name: str = "") -> PaymentIntent
     if booking is None:
         return None
     return PaymentIntent.objects.filter(booking=booking, public_id=public_id).first()
+
+
+def refund_queue(status: str = ""):
+    """The ops work list. Defaults to what still needs a decision."""
+    queryset = Refund.objects.select_related("booking").order_by("-created_at")
+    if status:
+        return queryset.filter(status=status.upper())
+    return queryset.filter(status=RefundStatus.REQUESTED)
+
+
+def refund_or_404(public_id) -> Refund:
+    refund = Refund.objects.select_related("booking", "payment").filter(
+        public_id=public_id
+    ).first()
+    if refund is None:
+        raise NotFound("No refund matches that id.")
+    return refund

@@ -110,6 +110,9 @@ class Booking(PublicIdModel, TimestampedModel):
     discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     paid_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    #: The priced breakdown as sold, tax lines included. Kept because a refund has to know
+    #: which taxes were refundable, and the Offer it came from is deleted after its TTL.
+    price_breakdown = models.JSONField(default=dict, blank=True)
     contact_email = models.EmailField()
     contact_phone = models.CharField(max_length=32, blank=True)
     promo_code = models.ForeignKey(

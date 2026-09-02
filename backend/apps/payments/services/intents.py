@@ -13,8 +13,9 @@ from ..constants import INTENT_TTL_MINUTES, IntentStatus
 from ..models import PaymentIntent
 from ..providers import get_provider
 
-#: An intent is only worth creating while the seats behind it are still held.
-PAYABLE_STATUSES = frozenset({BookingStatus.HELD})
+#: An intent is only worth creating while there are seats behind it: a new booking's hold, or
+#: the proposed seats of an exchange awaiting its delta.
+PAYABLE_STATUSES = frozenset({BookingStatus.HELD, BookingStatus.CHANGE_PENDING})
 
 
 @transaction.atomic

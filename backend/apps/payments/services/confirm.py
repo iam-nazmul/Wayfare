@@ -13,7 +13,8 @@ from apps.inventory.services.availability import confirm as confirm_seats
 from apps.ops.services.outbox import emit
 
 from ..constants import LedgerEntryType, PaymentStatus, RefundStatus
-from ..models import LedgerEntry, Payment, PaymentIntent, Refund
+from ..models import Payment, PaymentIntent, Refund
+from .ledger import post
 
 logger = logging.getLogger("wayfare.payments")
 
@@ -59,6 +60,16 @@ def apply_successful_payment(
     booking.refresh_from_db()
     _post_ledger(booking, payment)
 
+    if booking.status == BookingStatus.CHANGE_PENDING:
+        # Paying the difference on an exchange. The new seats were held when the change was
+        # confirmed; capture turns them into sales, and the reissue follows outside the lock.
+        _settle_holds(booking)
+        logger.info(
+            "change_delta_captured",
+            extra={"pnr": booking.pnr, "amount": str(amount)},
+        )
+        return payment
+
     if booking.status != BookingStatus.HELD:
         # The hold expired or the booking was cancelled while the callback was in flight. The
         # seats are gone and must not be re-taken, so the only honest outcome is to give the
@@ -66,23 +77,7 @@ def apply_successful_payment(
         _request_refund(booking, payment)
         return payment
 
-    holds = list(booking.holds.filter(released_at__isnull=True))
-    if holds:
-        confirm_seats(
-            [
-                SeatRequest(
-                    flight_id=hold.flight_id,
-                    cabin=hold.cabin,
-                    rbd=hold.rbd,
-                    seats=hold.seats,
-                )
-                for hold in holds
-            ]
-        )
-        booking.holds.filter(id__in=[hold.id for hold in holds]).update(
-            released_at=timezone.now()
-        )
-
+    _settle_holds(booking)
     booking.segments.update(status=SegmentStatus.CONFIRMED)
     Booking.objects.filter(pk=booking.pk).update(hold_expires_at=None)
     booking.refresh_from_db()
@@ -104,6 +99,24 @@ def apply_successful_payment(
         extra={"pnr": booking.pnr, "amount": str(amount), "charge_id": charge_id},
     )
     return payment
+
+
+def _settle_holds(booking: Booking) -> int:
+    """Turn every live hold on a booking into a sale."""
+    holds = list(booking.holds.filter(released_at__isnull=True))
+    if not holds:
+        return 0
+
+    confirm_seats(
+        [
+            SeatRequest(
+                flight_id=hold.flight_id, cabin=hold.cabin, rbd=hold.rbd, seats=hold.seats
+            )
+            for hold in holds
+        ]
+    )
+    booking.holds.filter(id__in=[hold.id for hold in holds]).update(released_at=timezone.now())
+    return len(holds)
 
 
 def _request_refund(booking: Booking, payment: Payment) -> Refund:
@@ -144,28 +157,23 @@ def _request_refund(booking: Booking, payment: Payment) -> Refund:
 
 
 def _post_ledger(booking: Booking, payment: Payment) -> None:
-    """Two append-only rows: what the traveller owes, and what they just paid."""
-    last = booking.ledger_entries.order_by("created_at").last()
-    balance = Decimal(last.balance_after) if last else Decimal("0.00")
+    """What the traveller owes, then what they just paid.
 
-    if last is None:
-        balance = Decimal(booking.total_amount)
-        LedgerEntry.objects.create(
-            booking=booking,
-            entry_type=LedgerEntryType.SALE,
-            debit=booking.total_amount,
-            currency=booking.currency,
-            balance_after=balance,
+    The sale is only opened once; a later exchange posts its own re-price adjustment, so the
+    running balance always has something for a payment to settle against.
+    """
+    if not booking.ledger_entries.exists():
+        post(
+            booking,
+            LedgerEntryType.SALE,
+            debit=Decimal(booking.total_amount),
             reference=booking.pnr,
         )
 
-    balance = balance - Decimal(payment.amount)
-    LedgerEntry.objects.create(
-        booking=booking,
-        entry_type=LedgerEntryType.PAYMENT,
-        credit=payment.amount,
-        currency=payment.currency,
-        balance_after=balance,
+    post(
+        booking,
+        LedgerEntryType.PAYMENT,
+        credit=Decimal(payment.amount),
         reference=payment.provider_charge_id,
     )
 

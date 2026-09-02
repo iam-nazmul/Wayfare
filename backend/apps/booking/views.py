@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 
 from apps.common.idempotency import idempotent
 from apps.pricing.constants import TripType
+from apps.pricing.services.refunds import quote_refund
 
 from .models import Offer, SearchQuery
 from .selectors import booking_for, guest_booking
@@ -19,11 +20,18 @@ from .serializers import (
     BookingCreateSerializer,
     BookingSerializer,
     CalendarEntrySerializer,
+    CancelRequestSerializer,
+    CancelResponseSerializer,
+    ChangeConfirmResponseSerializer,
+    ChangeQuoteSerializer,
+    ChangeRequestSerializer,
     OfferSerializer,
     SearchRequestSerializer,
     SearchResponseSerializer,
 )
 from .services.booking import ContactDetails, create_booking
+from .services.cancel import cancel_booking, is_voidable
+from .services.change import confirm_change, quote_change
 from .services.offers import load_offer
 from .services.search import SearchParams, run_search
 
@@ -327,3 +335,116 @@ def _reference_date(offer: Offer) -> date:
 
     arrival = offer.itinerary.get("arrival_utc")
     return date.fromisoformat(arrival[:10]) if arrival else search.depart_date
+
+
+@extend_schema(
+    tags=["bookings"],
+    parameters=[OpenApiParameter("last_name", str, description="Required for guest access")],
+    request=CancelRequestSerializer,
+    responses={200: CancelResponseSerializer},
+)
+class BookingCancelView(APIView):
+    """Cancel a booking and quote the refund.
+
+    ``quote_only`` returns the penalty without cancelling, so the traveller can see what a
+    cancellation costs before committing to it.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_scope = "payment"
+
+    @idempotent(scope="booking_cancel")
+    def post(self, request, pnr):
+        booking = _owned_booking_or_404(request, pnr)
+
+        serializer = CancelRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        if data["quote_only"]:
+            return Response(
+                {
+                    "booking": BookingSerializer(booking).data,
+                    "quote": quote_refund(booking).as_dict(),
+                    "voided": is_voidable(booking),
+                    "refund_id": None,
+                    "refund_status": None,
+                }
+            )
+
+        result = cancel_booking(
+            booking, actor=request.user, reason=data.get("reason", "")
+        )
+
+        return Response(
+            {
+                "booking": BookingSerializer(result.booking).data,
+                "quote": result.quote.as_dict(),
+                "voided": result.voided,
+                "refund_id": str(result.refund.public_id) if result.refund else None,
+                "refund_status": result.refund.status if result.refund else None,
+            }
+        )
+
+
+@extend_schema(
+    tags=["bookings"],
+    parameters=[OpenApiParameter("last_name", str, description="Required for guest access")],
+    request=ChangeRequestSerializer,
+    responses={200: ChangeQuoteSerializer},
+)
+class BookingChangeQuoteView(APIView):
+    """Price an exchange onto a new offer. Changes nothing."""
+
+    permission_classes = [AllowAny]
+    throttle_scope = "payment"
+
+    def post(self, request, pnr):
+        booking = _owned_booking_or_404(request, pnr)
+
+        serializer = ChangeRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        offer = load_offer(serializer.validated_data["offer_id"])
+        return Response(quote_change(booking, offer).as_dict())
+
+
+@extend_schema(
+    tags=["bookings"],
+    parameters=[OpenApiParameter("last_name", str, description="Required for guest access")],
+    request=ChangeRequestSerializer,
+    responses={200: ChangeConfirmResponseSerializer},
+)
+class BookingChangeConfirmView(APIView):
+    """Move the booking onto the new itinerary.
+
+    The new seats are taken and the booking becomes `CHANGE_PENDING`. Anything owed is collected
+    through the ordinary payment flow, which triggers the reissue; when nothing is owed the
+    exchange completes immediately.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_scope = "payment"
+
+    @idempotent(scope="booking_change")
+    def post(self, request, pnr):
+        booking = _owned_booking_or_404(request, pnr)
+
+        serializer = ChangeRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        offer = load_offer(serializer.validated_data["offer_id"])
+        booking, quote = confirm_change(booking, offer, actor=request.user)
+
+        return Response(
+            {"booking": BookingSerializer(booking).data, "quote": quote.as_dict()}
+        )
+
+
+def _owned_booking_or_404(request, pnr: str):
+    booking = booking_for(request.user, pnr) or guest_booking(
+        pnr, request.data.get("last_name", "") or request.query_params.get("last_name", "")
+    )
+    if booking is None:
+        raise NotFound("No booking matches those details.")
+    return booking

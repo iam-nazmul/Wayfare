@@ -10,6 +10,7 @@ from apps.common.exceptions import InvalidTransition
 from apps.common.locks import LockNotAcquired, redis_lock
 
 from .constants import UNTICKETED_ALERT_MINUTES
+from .services.exchange import exchange_tickets as exchange
 from .services.issue import issue_tickets as issue
 
 logger = logging.getLogger("wayfare.ticketing")
@@ -67,3 +68,35 @@ def void_expired_unticketed() -> int:
         logger.error("bookings_paid_but_unticketed", extra={"pnrs": stuck, "count": len(stuck)})
 
     return len(stuck)
+
+
+@shared_task(
+    name="ticketing.exchange_tickets",
+    queue="critical",
+    acks_late=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=5,
+)
+def exchange_tickets(booking_id: int) -> int:
+    """Reissue tickets after a change has been paid for.
+
+    Keyed by booking id and safe to redeliver: `exchange()` refuses anything that is no longer
+    `CHANGE_PENDING`, so a second delivery finds the work already done.
+    """
+    booking = Booking.objects.filter(pk=booking_id).first()
+    if booking is None:
+        return 0
+
+    try:
+        with redis_lock(f"booking:{booking.pnr}", timeout=60):
+            tickets = exchange(booking)
+    except LockNotAcquired:
+        logger.info("exchange_lock_busy", extra={"pnr": booking.pnr})
+        raise
+    except InvalidTransition:
+        logger.info("exchange_skipped", extra={"pnr": booking.pnr, "status": booking.status})
+        return 0
+
+    return len(tickets)

@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from apps.common.fields import MoneyField
 
-from .models import Payment, PaymentIntent
+from .models import Payment, PaymentIntent, Refund
 
 
 class PaymentIntentSerializer(serializers.ModelSerializer):
@@ -42,3 +42,22 @@ class SandboxConfirmSerializer(serializers.Serializer):
 
     def validate_card_number(self, value: str) -> str:
         return value.strip()
+
+
+class RefundSerializer(serializers.ModelSerializer):
+    refund_id = serializers.UUIDField(source="public_id", read_only=True)
+    pnr = serializers.CharField(source="booking.pnr", read_only=True)
+    amount = MoneyField("amount", read_only=True, source="*")
+    penalty = MoneyField("penalty_amount", read_only=True, source="*")
+
+    class Meta:
+        model = Refund
+        fields = [
+            "refund_id", "pnr", "amount", "penalty", "status", "reason",
+            "provider_refund_id", "processed_at", "created_at",
+        ]
+        read_only_fields = fields
+
+
+class RefundDecisionSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=255, required=False, allow_blank=True)

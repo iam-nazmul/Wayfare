@@ -128,7 +128,6 @@ paths:
       - api
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -164,7 +163,6 @@ paths:
       - catalog
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -189,7 +187,6 @@ paths:
       - catalog
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -226,7 +223,6 @@ paths:
       - catalog
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -271,7 +267,6 @@ paths:
       - auth
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '204':
           description: No response body
@@ -322,7 +317,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '201':
@@ -352,7 +346,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '201':
@@ -386,7 +379,6 @@ paths:
       - bookings
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -394,6 +386,131 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Booking'
+          description: ''
+  /api/v1/bookings/{pnr}/cancel:
+    post:
+      operationId: bookings_cancel_create
+      description: |-
+        Cancel a booking and quote the refund.
+
+        ``quote_only`` returns the penalty without cancelling, so the traveller can see what a
+        cancellation costs before committing to it.
+      parameters:
+      - in: query
+        name: last_name
+        schema:
+          type: string
+        description: Required for guest access
+      - in: path
+        name: pnr
+        schema:
+          type: string
+        required: true
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CancelRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CancelRequestRequest'
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelResponse'
+          description: ''
+  /api/v1/bookings/{pnr}/change/confirm:
+    post:
+      operationId: bookings_change_confirm_create
+      description: |-
+        Move the booking onto the new itinerary.
+
+        The new seats are taken and the booking becomes `CHANGE_PENDING`. Anything owed is collected
+        through the ordinary payment flow, which triggers the reissue; when nothing is owed the
+        exchange completes immediately.
+      parameters:
+      - in: query
+        name: last_name
+        schema:
+          type: string
+        description: Required for guest access
+      - in: path
+        name: pnr
+        schema:
+          type: string
+        required: true
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChangeRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChangeRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangeConfirmResponse'
+          description: ''
+  /api/v1/bookings/{pnr}/change/quote:
+    post:
+      operationId: bookings_change_quote_create
+      description: Price an exchange onto a new offer. Changes nothing.
+      parameters:
+      - in: query
+        name: last_name
+        schema:
+          type: string
+        description: Required for guest access
+      - in: path
+        name: pnr
+        schema:
+          type: string
+        required: true
+      tags:
+      - bookings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChangeRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChangeRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangeQuote'
           description: ''
   /api/v1/bookings/{pnr}/payment-intents:
     post:
@@ -418,7 +535,6 @@ paths:
       - payments
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '201':
@@ -453,7 +569,6 @@ paths:
       - payments
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -496,7 +611,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '202':
@@ -523,7 +637,6 @@ paths:
       - payments
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -533,6 +646,110 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Payment'
+          description: ''
+  /api/v1/bookings/{pnr}/rebook:
+    post:
+      operationId: bookings_rebook_create
+      description: |-
+        Take one of the offered alternatives.
+
+        Availability is re-read under lock: an option is a suggestion, not a reservation, so a
+        flight that filled up in the meantime returns 409 rather than overselling.
+      parameters:
+      - in: query
+        name: last_name
+        schema:
+          type: string
+        description: Required for guest access
+      - in: path
+        name: pnr
+        schema:
+          type: string
+        required: true
+      tags:
+      - disruption
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RebookRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RebookRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RebookRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+          description: ''
+  /api/v1/bookings/{pnr}/rebook-options:
+    get:
+      operationId: bookings_rebook_options_list
+      description: |-
+        Alternatives offered after a disruption.
+
+        Returns `[]` for an undisrupted booking rather than a 404 — the client asks routinely.
+      parameters:
+      - in: query
+        name: last_name
+        schema:
+          type: string
+        description: Required for guest access
+      - in: path
+        name: pnr
+        schema:
+          type: string
+        required: true
+      tags:
+      - disruption
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RebookOption'
+          description: ''
+  /api/v1/bookings/{pnr}/refunds:
+    get:
+      operationId: bookings_refunds_list
+      description: Refund history for one booking.
+      parameters:
+      - in: query
+        name: last_name
+        schema:
+          type: string
+        description: Required for guest access
+      - in: path
+        name: pnr
+        schema:
+          type: string
+        required: true
+      tags:
+      - payments
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Refund'
           description: ''
   /api/v1/bookings/{pnr}/tickets:
     get:
@@ -557,7 +774,6 @@ paths:
       - ticketing
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -608,7 +824,6 @@ paths:
       - catalog
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -641,7 +856,6 @@ paths:
       - catalog
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -659,7 +873,6 @@ paths:
       - accounts
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -684,7 +897,6 @@ paths:
               $ref: '#/components/schemas/PatchedUserRequest'
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -718,7 +930,6 @@ paths:
       - accounts
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -744,7 +955,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '201':
           content:
@@ -766,7 +976,6 @@ paths:
       - accounts
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -799,7 +1008,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -831,7 +1039,6 @@ paths:
               $ref: '#/components/schemas/PatchedTravellerRequest'
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -852,7 +1059,6 @@ paths:
       - accounts
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '204':
           description: No response body
@@ -874,7 +1080,6 @@ paths:
       - search
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -882,6 +1087,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Offer'
+          description: ''
+  /api/v1/ops/disruptions:
+    get:
+      operationId: ops_disruptions_list
+      description: Open disruptions, newest first. Ops staff only.
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Disruption'
           description: ''
   /api/v1/ops/flights/:
     get:
@@ -941,7 +1163,6 @@ paths:
       - ops
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -963,7 +1184,6 @@ paths:
       - ops
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -995,7 +1215,6 @@ paths:
               $ref: '#/components/schemas/PatchedFlightOpsRequest'
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1075,7 +1294,6 @@ paths:
       - ops
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1165,7 +1383,6 @@ paths:
               $ref: '#/components/schemas/PatchedInventoryUpdateRequest'
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1194,7 +1411,6 @@ paths:
       - ops
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1203,6 +1419,150 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Seat'
+          description: ''
+  /api/v1/ops/refunds:
+    get:
+      operationId: ops_refunds_list
+      description: Refunds awaiting a decision. Finance only.
+      parameters:
+      - in: query
+        name: status
+        schema:
+          type: string
+        description: Filter by refund status
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Refund'
+          description: ''
+  /api/v1/ops/refunds/{refund_id}/approve:
+    post:
+      operationId: ops_refunds_approve_create
+      description: Release a queued refund to the provider.
+      parameters:
+      - in: path
+        name: refund_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundDecisionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RefundDecisionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RefundDecisionRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refund'
+          description: ''
+  /api/v1/ops/refunds/{refund_id}/reject:
+    post:
+      operationId: ops_refunds_reject_create
+      description: Decline a queued refund. The booking stays cancelled; the money
+        is not returned.
+      parameters:
+      - in: path
+        name: refund_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - ops
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundDecisionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RefundDecisionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RefundDecisionRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Refund'
+          description: ''
+  /api/v1/ops/reports/{slug}:
+    get:
+      operationId: ops_reports_retrieve
+      description: 'Operational reports (SPEC.md §9.5). Cached for five minutes; send
+        `Accept: text/csv` for a CSV stream instead of JSON.'
+      parameters:
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date
+        description: Defaults to 30 days ago
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date
+        description: Defaults to today
+      - in: query
+        name: destination
+        schema:
+          type: string
+        description: fare-trend only
+      - in: query
+        name: format
+        schema:
+          type: string
+          enum:
+          - csv
+          - json
+      - in: query
+        name: origin
+        schema:
+          type: string
+        description: fare-trend only
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - ops
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResponse'
+            text/csv:
+              schema:
+                $ref: '#/components/schemas/ReportResponse'
           description: ''
   /api/v1/ops/routes/:
     get:
@@ -1230,7 +1590,6 @@ paths:
       - ops
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1256,7 +1615,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '201':
           content:
@@ -1278,7 +1636,6 @@ paths:
       - ops
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1311,7 +1668,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1343,7 +1699,6 @@ paths:
               $ref: '#/components/schemas/PatchedRouteRequest'
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1364,7 +1719,6 @@ paths:
       - ops
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '204':
           description: No response body
@@ -1394,7 +1748,6 @@ paths:
       - ops
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1420,7 +1773,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '201':
           content:
@@ -1442,7 +1794,6 @@ paths:
       - ops
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1475,7 +1826,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1507,7 +1857,6 @@ paths:
               $ref: '#/components/schemas/PatchedFlightScheduleRequest'
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1528,7 +1877,6 @@ paths:
       - ops
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '204':
           description: No response body
@@ -1559,7 +1907,6 @@ paths:
               $ref: '#/components/schemas/MaterialiseRequest'
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '202':
           description: No response body
@@ -1589,7 +1936,6 @@ paths:
       - ops
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1615,7 +1961,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '201':
           content:
@@ -1637,7 +1982,6 @@ paths:
       - ops
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1670,7 +2014,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1702,7 +2045,6 @@ paths:
               $ref: '#/components/schemas/PatchedSeatMapTemplateRequest'
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '200':
           content:
@@ -1723,7 +2065,6 @@ paths:
       - ops
       security:
       - jwtAuth: []
-      - cookieAuth: []
       responses:
         '204':
           description: No response body
@@ -1756,7 +2097,6 @@ paths:
       - search
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -1789,7 +2129,6 @@ paths:
         required: true
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -1845,7 +2184,6 @@ paths:
       - search
       security:
       - jwtAuth: []
-      - cookieAuth: []
       - {}
       responses:
         '200':
@@ -2276,6 +2614,85 @@ components:
       required:
       - cheapest
       - date
+    CancelRequestRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 255
+        quote_only:
+          type: boolean
+          default: false
+    CancelResponse:
+      type: object
+      properties:
+        booking:
+          $ref: '#/components/schemas/Booking'
+        quote:
+          $ref: '#/components/schemas/RefundQuote'
+        voided:
+          type: boolean
+        refund_id:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        refund_status:
+          type:
+          - string
+          - 'null'
+      required:
+      - booking
+      - quote
+      - refund_id
+      - refund_status
+      - voided
+    ChangeConfirmResponse:
+      type: object
+      properties:
+        booking:
+          $ref: '#/components/schemas/Booking'
+        quote:
+          $ref: '#/components/schemas/ChangeQuote'
+      required:
+      - booking
+      - quote
+    ChangeQuote:
+      type: object
+      properties:
+        old_total:
+          $ref: '#/components/schemas/MoneyOut'
+        new_total:
+          $ref: '#/components/schemas/MoneyOut'
+        fare_difference:
+          $ref: '#/components/schemas/MoneyOut'
+        change_fee:
+          $ref: '#/components/schemas/MoneyOut'
+        amount_due:
+          $ref: '#/components/schemas/MoneyOut'
+        residual:
+          $ref: '#/components/schemas/MoneyOut'
+        changeable:
+          type: boolean
+        reason:
+          type: string
+      required:
+      - amount_due
+      - change_fee
+      - changeable
+      - fare_difference
+      - new_total
+      - old_total
+      - reason
+      - residual
+    ChangeRequestRequest:
+      type: object
+      properties:
+        offer_id:
+          type: string
+          format: uuid
+      required:
+      - offer_id
     CollectBatchRequest:
       type: object
       properties:
@@ -2345,6 +2762,56 @@ components:
       required:
       - code
       - name
+    Disruption:
+      type: object
+      properties:
+        disruption_id:
+          type: string
+          format: uuid
+          readOnly: true
+        flight:
+          type: string
+          readOnly: true
+        type:
+          allOf:
+          - $ref: '#/components/schemas/DisruptionTypeEnum'
+          readOnly: true
+        reason:
+          type: string
+          readOnly: true
+        delay_minutes:
+          type: integer
+          readOnly: true
+        detected_at:
+          type: string
+          format: date-time
+          readOnly: true
+        resolved_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+      required:
+      - delay_minutes
+      - detected_at
+      - disruption_id
+      - flight
+      - reason
+      - resolved_at
+      - type
+    DisruptionTypeEnum:
+      enum:
+      - CANCELLATION
+      - DELAY
+      - DIVERSION
+      - SCHEDULE_CHANGE
+      type: string
+      description: |-
+        * `CANCELLATION` - Cancellation
+        * `DELAY` - Significant delay
+        * `DIVERSION` - Diversion
+        * `SCHEDULE_CHANGE` - Schedule change
     DocTypeEnum:
       enum:
       - PASSPORT
@@ -2723,6 +3190,19 @@ components:
           maximum: 365
           minimum: 1
           default: 90
+    MoneyOut:
+      type: object
+      properties:
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        currency:
+          type: string
+          maxLength: 3
+      required:
+      - amount
+      - currency
     Offer:
       type: object
       properties:
@@ -2884,7 +3364,7 @@ components:
           readOnly: true
         type:
           allOf:
-          - $ref: '#/components/schemas/TypeEnum'
+          - $ref: '#/components/schemas/TypeD47Enum'
           readOnly: true
         first_name:
           type: string
@@ -2935,7 +3415,7 @@ components:
       type: object
       properties:
         type:
-          $ref: '#/components/schemas/TypeEnum'
+          $ref: '#/components/schemas/TypeD47Enum'
         first_name:
           type: string
           minLength: 1
@@ -3278,6 +3758,183 @@ components:
         * `FAILED` - Failed
         * `REFUNDED` - Refunded
         * `PARTIALLY_REFUNDED` - Partially refunded
+    RebookOption:
+      type: object
+      properties:
+        option_id:
+          type: string
+          format: uuid
+          readOnly: true
+        rank:
+          type: integer
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/RebookOptionStatusEnum'
+          readOnly: true
+        designator:
+          type: string
+          readOnly: true
+        origin:
+          type: string
+          readOnly: true
+        destination:
+          type: string
+          readOnly: true
+        departure_local:
+          type: string
+          format: date-time
+          readOnly: true
+        arrival_local:
+          type: string
+          format: date-time
+          readOnly: true
+        duration_minutes:
+          type: integer
+          readOnly: true
+        cabin:
+          type: string
+          readOnly: true
+        fare_delta:
+          type: string
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+        disrupted_flight:
+          type: string
+          readOnly: true
+        disruption_type:
+          type: string
+          readOnly: true
+        reason:
+          type: string
+          readOnly: true
+      required:
+      - arrival_local
+      - cabin
+      - departure_local
+      - designator
+      - destination
+      - disrupted_flight
+      - disruption_type
+      - duration_minutes
+      - expires_at
+      - fare_delta
+      - option_id
+      - origin
+      - rank
+      - reason
+      - status
+    RebookOptionStatusEnum:
+      enum:
+      - OFFERED
+      - ACCEPTED
+      - DECLINED
+      - EXPIRED
+      type: string
+      description: |-
+        * `OFFERED` - Offered
+        * `ACCEPTED` - Accepted
+        * `DECLINED` - Declined
+        * `EXPIRED` - Expired
+    RebookRequestRequest:
+      type: object
+      properties:
+        option_id:
+          type: string
+          format: uuid
+      required:
+      - option_id
+    Refund:
+      type: object
+      properties:
+        refund_id:
+          type: string
+          format: uuid
+          readOnly: true
+        pnr:
+          type: string
+          readOnly: true
+        amount:
+          type: string
+          readOnly: true
+        penalty:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/RefundStatusEnum'
+          readOnly: true
+        reason:
+          type: string
+          readOnly: true
+        provider_refund_id:
+          type: string
+          readOnly: true
+        processed_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - created_at
+      - penalty
+      - pnr
+      - processed_at
+      - provider_refund_id
+      - reason
+      - refund_id
+      - status
+    RefundDecisionRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 255
+    RefundQuote:
+      type: object
+      properties:
+        paid:
+          $ref: '#/components/schemas/MoneyOut'
+        penalty:
+          $ref: '#/components/schemas/MoneyOut'
+        non_refundable_tax:
+          $ref: '#/components/schemas/MoneyOut'
+        refundable:
+          $ref: '#/components/schemas/MoneyOut'
+        refundable_fare:
+          type: boolean
+        reason:
+          type: string
+      required:
+      - non_refundable_tax
+      - paid
+      - penalty
+      - reason
+      - refundable
+      - refundable_fare
+    RefundStatusEnum:
+      enum:
+      - REQUESTED
+      - APPROVED
+      - REJECTED
+      - PROCESSED
+      - FAILED
+      type: string
+      description: |-
+        * `REQUESTED` - Requested
+        * `APPROVED` - Approved
+        * `REJECTED` - Rejected
+        * `PROCESSED` - Processed
+        * `FAILED` - Failed
     RegisterRequest:
       type: object
       properties:
@@ -3301,6 +3958,36 @@ components:
       required:
       - email
       - password
+    ReportResponse:
+      type: object
+      description: 'Schema-only: reports are shaped by their query, so rows stay untyped.'
+      properties:
+        report:
+          type: string
+        date_from:
+          type: string
+          format: date
+        date_to:
+          type: string
+          format: date
+        columns:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            type: array
+            items: {}
+        row_count:
+          type: integer
+      required:
+      - columns
+      - date_from
+      - date_to
+      - report
+      - row_count
+      - rows
     Route:
       type: object
       properties:
@@ -3814,7 +4501,7 @@ components:
         * `ONE_WAY` - One way
         * `ROUND_TRIP` - Round trip
         * `MULTI_CITY` - Multi city
-    TypeEnum:
+    TypeD47Enum:
       enum:
       - ADT
       - CHD
@@ -3861,10 +4548,6 @@ components:
       - public_id
       - roles
   securitySchemes:
-    cookieAuth:
-      type: apiKey
-      in: cookie
-      name: sessionid
     jwtAuth:
       type: http
       scheme: bearer

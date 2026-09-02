@@ -13,16 +13,26 @@ from rest_framework.views import APIView
 
 from apps.common.exceptions import PaymentFailed
 from apps.common.idempotency import idempotent
+from apps.common.permissions import FinancePermission
 
 from .constants import IntentStatus, ThreeDsStatus
 from .providers import WebhookVerificationFailed, get_provider
-from .selectors import booking_or_none, intent_for, payments_for_booking
+from .selectors import (
+    booking_or_none,
+    intent_for,
+    payments_for_booking,
+    refund_or_404,
+    refund_queue,
+)
 from .serializers import (
     PaymentIntentSerializer,
     PaymentSerializer,
+    RefundDecisionSerializer,
+    RefundSerializer,
     SandboxConfirmSerializer,
 )
 from .services.intents import create_payment_intent
+from .services.refunds import approve, reject
 from .services.webhooks import record_event
 from .tasks import handle_payment_succeeded
 
@@ -211,3 +221,74 @@ class PaymentWebhookView(APIView):
 
         # 202 either way: a replay is a success from the provider's point of view.
         return Response(status=status.HTTP_202_ACCEPTED)
+
+
+@extend_schema(
+    tags=["payments"],
+    parameters=[OpenApiParameter("last_name", str, description="Required for guest access")],
+    responses={200: RefundSerializer(many=True)},
+)
+class BookingRefundListView(APIView):
+    """Refund history for one booking."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, pnr):
+        booking = _booking_or_404(request, pnr)
+        refunds = booking.refunds.select_related("booking").order_by("-created_at")
+        return Response(RefundSerializer(refunds, many=True).data)
+
+
+@extend_schema(
+    tags=["ops"],
+    parameters=[OpenApiParameter("status", str, description="Filter by refund status")],
+    responses={200: RefundSerializer(many=True)},
+)
+class OpsRefundQueueView(APIView):
+    """Refunds awaiting a decision. Finance only."""
+
+    permission_classes = [FinancePermission]
+
+    def get(self, request):
+        refunds = refund_queue(request.query_params.get("status", ""))
+        return Response(RefundSerializer(refunds, many=True).data)
+
+
+@extend_schema(
+    tags=["ops"],
+    request=RefundDecisionSerializer,
+    responses={200: RefundSerializer},
+)
+class OpsRefundApproveView(APIView):
+    """Release a queued refund to the provider."""
+
+    permission_classes = [FinancePermission]
+
+    def post(self, request, refund_id):
+        refund = refund_or_404(refund_id)
+        serializer = RefundDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        approve(refund, actor=request.user, note=serializer.validated_data.get("reason", ""))
+        refund.refresh_from_db()
+        return Response(RefundSerializer(refund).data)
+
+
+@extend_schema(
+    tags=["ops"],
+    request=RefundDecisionSerializer,
+    responses={200: RefundSerializer},
+)
+class OpsRefundRejectView(APIView):
+    """Decline a queued refund. The booking stays cancelled; the money is not returned."""
+
+    permission_classes = [FinancePermission]
+
+    def post(self, request, refund_id):
+        refund = refund_or_404(refund_id)
+        serializer = RefundDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        reject(refund, actor=request.user, reason=serializer.validated_data.get("reason", ""))
+        refund.refresh_from_db()
+        return Response(RefundSerializer(refund).data)
