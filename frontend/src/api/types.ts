@@ -155,7 +155,8 @@ export interface BookingSegment {
 }
 
 export interface BookingRequest {
-  offer_id: string;
+  /** One offer per journey slice, in travel order. A round trip sends two. */
+  offer_ids: string[];
   passengers: PassengerInput[];
   contact: { email: string; phone?: string };
 }

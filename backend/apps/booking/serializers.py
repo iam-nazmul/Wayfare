@@ -142,9 +142,39 @@ class ContactSerializer(serializers.Serializer):
 
 
 class BookingCreateSerializer(serializers.Serializer):
-    offer_id = serializers.UUIDField()
+    """One offer per journey slice — a round trip books both legs into a single PNR.
+
+    ``offer_id`` is the one-slice shorthand; ``offer_ids`` carries a multi-slice journey in
+    travel order. Exactly one of the two must be given.
+    """
+
+    offer_id = serializers.UUIDField(required=False)
+    offer_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, min_length=1, max_length=6
+    )
     passengers = PassengerInputSerializer(many=True, min_length=1, max_length=9)
     contact = ContactSerializer()
+
+    def validate(self, attrs: dict) -> dict:
+        single, many = attrs.get("offer_id"), attrs.get("offer_ids")
+
+        if not single and not many:
+            raise serializers.ValidationError(
+                {"offer_ids": "Give an offer for each slice of the journey."}
+            )
+        if single and many:
+            raise serializers.ValidationError(
+                {"offer_ids": "Send either offer_id or offer_ids, not both."}
+            )
+
+        offers = many or [single]
+        if len(set(offers)) != len(offers):
+            raise serializers.ValidationError(
+                {"offer_ids": "The same offer cannot be used for two slices."}
+            )
+
+        attrs["offer_ids"] = offers
+        return attrs
 
     def validate_passengers(self, passengers: list[dict]) -> list[dict]:
         counts = Counter(entry["type"] for entry in passengers)

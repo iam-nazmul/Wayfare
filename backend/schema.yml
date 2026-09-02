@@ -2425,10 +2425,22 @@ components:
       - sold
     BookingCreateRequest:
       type: object
+      description: |-
+        One offer per journey slice — a round trip books both legs into a single PNR.
+
+        ``offer_id`` is the one-slice shorthand; ``offer_ids`` carries a multi-slice journey in
+        travel order. Exactly one of the two must be given.
       properties:
         offer_id:
           type: string
           format: uuid
+        offer_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          maxItems: 6
+          minItems: 1
         passengers:
           type: array
           items:
@@ -2437,7 +2449,6 @@ components:
           $ref: '#/components/schemas/ContactRequest'
       required:
       - contact
-      - offer_id
       - passengers
     BookingSegment:
       type: object
@@ -4542,8 +4553,12 @@ components:
           items:
             type: string
           readOnly: true
+        is_staff:
+          type: boolean
+          readOnly: true
       required:
       - email
+      - is_staff
       - mfa_enabled
       - public_id
       - roles

@@ -61,6 +61,18 @@ def is_voidable(booking: Booking, *, now=None) -> bool:
     return not ticket.coupons.exclude(status=CouponStatus.OPEN).exists()
 
 
+def preview_cancellation(booking: Booking) -> tuple[RefundQuote, bool]:
+    """What cancelling this booking would return, and whether it is a void.
+
+    The only place that decides which quote applies. `cancel_booking` and the `quote_only`
+    preview both go through it, or the price a traveller is shown differs from the one they
+    are given.
+    """
+    voided = is_voidable(booking)
+    quote = quote_refund(booking)
+    return (_void_quote(booking, quote) if voided else quote), voided
+
+
 @transaction.atomic
 def cancel_booking(booking: Booking, *, actor=None, reason: str = "") -> CancellationResult:
     """Cancel a booking, release its seats, and open a refund for whatever is owed back.
@@ -74,11 +86,7 @@ def cancel_booking(booking: Booking, *, actor=None, reason: str = "") -> Cancell
     if booking.status not in CANCELLABLE:
         raise InvalidTransition(f"A {booking.status} booking cannot be cancelled.")
 
-    voided = is_voidable(booking)
-    quote = quote_refund(booking)
-
-    if voided:
-        quote = _void_quote(booking, quote)
+    quote, voided = preview_cancellation(booking)
 
     _release_inventory(booking)
     booking.segments.update(status=SegmentStatus.CANCELLED)

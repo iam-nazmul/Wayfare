@@ -940,9 +940,16 @@ export interface components {
             is_open?: boolean;
             sort_order?: number;
         };
+        /**
+         * @description One offer per journey slice — a round trip books both legs into a single PNR.
+         *
+         *     ``offer_id`` is the one-slice shorthand; ``offer_ids`` carries a multi-slice journey in
+         *     travel order. Exactly one of the two must be given.
+         */
         BookingCreateRequest: {
             /** Format: uuid */
-            offer_id: string;
+            offer_id?: string;
+            offer_ids?: string[];
             passengers: components["schemas"]["PassengerInputRequest"][];
             contact: components["schemas"]["ContactRequest"];
         };
@@ -1766,6 +1773,7 @@ export interface components {
             locale?: string;
             readonly mfa_enabled: boolean;
             readonly roles: string[];
+            readonly is_staff: boolean;
         };
     };
     responses: never;

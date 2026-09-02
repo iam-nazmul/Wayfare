@@ -119,6 +119,7 @@ def cancel(client, booking, **body):
 
 
 def test_quote_only_shows_the_penalty_without_cancelling(client, paid_booking):
+    age_ticket()
     response = cancel(client, paid_booking, quote_only=True)
 
     assert response.status_code == 200
@@ -557,3 +558,24 @@ def test_the_ledger_reconciles_after_an_exchange(
 
     booking = Booking.objects.get(pk=paid_booking.pk)
     assert booking.paid_amount == booking.total_amount
+
+
+def test_the_quote_matches_what_a_void_actually_returns(client, paid_booking, celery_eager):
+    """The preview and the cancellation must agree, or we quote a number we do not pay."""
+    preview = cancel(client, paid_booking, quote_only=True)
+    actual = cancel(client, paid_booking)
+
+    assert preview.data["voided"] == actual.data["voided"] is True
+    assert preview.data["quote"] == actual.data["quote"]
+    assert preview.data["quote"]["penalty"]["amount"] == "0.00"
+
+
+def test_the_quote_matches_a_penalised_cancellation(client, paid_booking, celery_eager):
+    age_ticket()
+
+    preview = cancel(client, paid_booking, quote_only=True)
+    actual = cancel(client, paid_booking)
+
+    assert preview.data["voided"] == actual.data["voided"] is False
+    assert preview.data["quote"] == actual.data["quote"]
+    assert preview.data["quote"]["penalty"]["amount"] == "40.00"

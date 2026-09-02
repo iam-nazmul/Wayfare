@@ -38,7 +38,7 @@ def seats_needed(passengers: list[dict]) -> int:
 
 @transaction.atomic
 def create_booking(
-    offer: Offer,
+    offers: Offer | list[Offer],
     passengers: list[dict],
     contact: ContactDetails,
     *,
@@ -46,16 +46,31 @@ def create_booking(
     agency=None,
     source_channel: str = SourceChannel.WEB,
 ) -> Booking:
-    """Turn a validated offer into a held PNR.
+    """Turn one validated offer per journey slice into a single held PNR.
 
-    The offer's signature and expiry are already checked by ``load_offer``; what cannot be
-    checked ahead of time is whether the seats are still there, so availability is re-read
-    under ``SELECT … FOR UPDATE`` inside this transaction. An unexpired offer is not a
-    reservation.
+    A round trip arrives as two offers — each priced and signed for its own slice — and becomes
+    one booking, because a traveller who cannot fly home does not want the outbound either.
+
+    Signatures and expiry are already checked by ``load_offer``; what cannot be checked ahead of
+    time is whether the seats are still there, so availability is re-read under
+    ``SELECT … FOR UPDATE`` inside this transaction. An unexpired offer is not a reservation.
     """
-    segments = offer.itinerary.get("segments", [])
+    offers = [offers] if isinstance(offers, Offer) else list(offers)
+    if not offers:
+        raise InventoryUnavailable("A booking needs at least one offer.")
+
+    currencies = {offer.currency for offer in offers}
+    if len(currencies) > 1:
+        raise InventoryUnavailable("Every slice of a journey must be priced in one currency.")
+
+    segments = [
+        segment for offer in offers for segment in offer.itinerary.get("segments", [])
+    ]
     if not segments:
         raise InventoryUnavailable("That offer has no flights on it.")
+
+    offer = offers[0]
+    breakdown = _combined_breakdown(offers)
 
     party = seats_needed(passengers)
     if party == 0:
@@ -77,10 +92,10 @@ def create_booking(
         )
         for segment in segments
     ]
+    # One call, so every leg of the journey is locked in the same deterministic order.
     # Raises InventoryUnavailable (409) if the seats went between search and here.
     hold(requests)
 
-    breakdown = offer.price_breakdown
     expires_at = timezone.now() + timedelta(minutes=settings.HOLD_TTL_MINUTES)
 
     booking = create_with_pnr(
@@ -93,7 +108,7 @@ def create_booking(
         tax_amount=_amount(breakdown, "taxes"),
         fee_amount=_amount(breakdown, "fees"),
         discount_amount=_amount(breakdown, "discount"),
-        total_amount=offer.total_amount,
+        total_amount=sum(Decimal(entry.total_amount) for entry in offers),
         price_breakdown=breakdown,
         contact_email=contact.email,
         contact_phone=contact.phone,
@@ -124,7 +139,7 @@ def create_booking(
         [
             InventoryHold(
                 booking=booking,
-                offer_id=offer.offer_id,
+                offer_id=offer.offer_id,  # the first slice's id identifies the journey
                 flight_id=request.flight_id,
                 cabin=request.cabin,
                 rbd=request.rbd,
@@ -149,6 +164,7 @@ def create_booking(
             "total": {"amount": str(booking.total_amount), "currency": booking.currency},
             "hold_expires_at": expires_at.isoformat(),
             "segments": [s["designator"] for s in segments],
+            "slices": len(offers),
         },
     )
 
@@ -157,6 +173,33 @@ def create_booking(
         extra={"pnr": booking.pnr, "seats": party, "segments": len(segments)},
     )
     return booking
+
+
+def _combined_breakdown(offers: list[Offer]) -> dict:
+    """Merge each slice's priced breakdown into the one the booking is sold on.
+
+    Amounts are summed and the lines concatenated rather than re-derived: the traveller is
+    charged the sum of the prices they were quoted, not a fresh calculation.
+    """
+    if len(offers) == 1:
+        return offers[0].price_breakdown
+
+    currency = offers[0].currency
+    merged: dict = {
+        "tax_lines": [],
+        "fee_lines": [],
+        "segments": [],
+    }
+
+    for key in ("base", "taxes", "fees", "discount", "total"):
+        total = sum(_amount(offer.price_breakdown, key) for offer in offers)
+        merged[key] = {"amount": str(total), "currency": currency}
+
+    for offer in offers:
+        for key in ("tax_lines", "fee_lines", "segments"):
+            merged[key].extend(offer.price_breakdown.get(key, []))
+
+    return merged
 
 
 def _fare_basis(breakdown: dict, flight_id: int) -> str:

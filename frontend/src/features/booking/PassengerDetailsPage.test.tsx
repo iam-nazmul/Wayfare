@@ -65,18 +65,18 @@ describe('PassengerDetailsPage', () => {
   beforeEach(() => {
     navigate.mockReset();
     post.mockReset();
-    useBookingWizard.setState({ offer, party: { adults: 1, children: 0, infants: 0 } });
+    useBookingWizard.setState({ offers: [offer], party: { adults: 1, children: 0, infants: 0 } });
   });
 
   it('sends the traveller back to search when no flight is selected', () => {
-    useBookingWizard.setState({ offer: null, party: { adults: 1, children: 0, infants: 0 } });
+    useBookingWizard.setState({ offers: [], party: { adults: 1, children: 0, infants: 0 } });
     renderPage();
 
     expect(screen.getByRole('link', { name: /start a new search/i })).toBeInTheDocument();
   });
 
   it('renders one form per seated passenger', () => {
-    useBookingWizard.setState({ offer, party: { adults: 2, children: 1, infants: 0 } });
+    useBookingWizard.setState({ offers: [offer], party: { adults: 2, children: 1, infants: 0 } });
     renderPage();
 
     expect(screen.getAllByLabelText('First name')).toHaveLength(3);
@@ -98,7 +98,7 @@ describe('PassengerDetailsPage', () => {
     expect(post).toHaveBeenCalledWith(
       '/bookings',
       {
-        offer_id: 'offer-1',
+        offer_ids: ['offer-1'],
         passengers: [
           {
             type: 'ADT',
@@ -120,7 +120,7 @@ describe('PassengerDetailsPage', () => {
 
   it('will not submit against an expired price', () => {
     useBookingWizard.setState({
-      offer: { ...offer, expires_at: new Date(Date.now() - 1000).toISOString() },
+      offers: [{ ...offer, expires_at: new Date(Date.now() - 1000).toISOString() }],
       party: { adults: 1, children: 0, infants: 0 },
     });
     renderPage();
