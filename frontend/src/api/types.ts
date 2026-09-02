@@ -233,3 +233,100 @@ export interface Ticket {
   fare_calculation: string;
   coupons: TicketCoupon[];
 }
+
+export interface RefundQuote {
+  paid: Money;
+  penalty: Money;
+  non_refundable_tax: Money;
+  refundable: Money;
+  refundable_fare: boolean;
+  reason: string;
+}
+
+export interface CancelResponse {
+  booking: Booking;
+  quote: RefundQuote;
+  voided: boolean;
+  refund_id: string | null;
+  refund_status: string | null;
+}
+
+export interface ChangeQuote {
+  old_total: Money;
+  new_total: Money;
+  fare_difference: Money;
+  change_fee: Money;
+  amount_due: Money;
+  residual: Money;
+  changeable: boolean;
+  reason: string;
+}
+
+export interface ChangeConfirmResponse {
+  booking: Booking;
+  quote: ChangeQuote;
+}
+
+export interface Refund {
+  refund_id: string;
+  pnr: string;
+  amount: Money;
+  penalty: Money;
+  status: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'PROCESSED' | 'FAILED';
+  reason: string;
+  provider_refund_id: string;
+  processed_at: string | null;
+  created_at: string;
+}
+
+export interface RebookOption {
+  option_id: string;
+  rank: number;
+  status: string;
+  designator: string;
+  origin: string;
+  destination: string;
+  departure_local: string;
+  arrival_local: string;
+  duration_minutes: number;
+  cabin: Cabin;
+  fare_delta: Money;
+  expires_at: string;
+  disrupted_flight: string;
+  disruption_type: string;
+  reason: string;
+}
+
+export interface Disruption {
+  disruption_id: string;
+  flight: string;
+  type: string;
+  reason: string;
+  delay_minutes: number;
+  detected_at: string;
+  resolved_at: string | null;
+}
+
+export interface ReportResponse {
+  report: string;
+  date_from: string;
+  date_to: string;
+  columns: string[];
+  rows: (string | number | null)[][];
+  row_count: number;
+}
+
+export interface User {
+  public_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  roles?: string[];
+  is_staff?: boolean;
+}
+
+export interface TokenPair {
+  access: string;
+  refresh: string;
+}

@@ -11,9 +11,11 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "public_id", "email", "first_name", "last_name",
-            "phone", "locale", "mfa_enabled", "roles",
+            "phone", "locale", "mfa_enabled", "roles", "is_staff",
         ]
-        read_only_fields = ["public_id", "email", "mfa_enabled", "roles"]
+        #: `is_staff` is exposed so the SPA can gate the ops nav. It is not the authorisation —
+        #: every /ops endpoint checks the role server-side regardless of what the client renders.
+        read_only_fields = ["public_id", "email", "mfa_enabled", "roles", "is_staff"]
 
     def get_roles(self, obj: User) -> list[str]:
         return sorted(obj.role_codes)
